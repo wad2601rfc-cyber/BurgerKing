@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Burger King AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bk-red': '#D62300',
+                        'bk-dark': '#2B2B2B',
+                        'bk-yellow': '#F5EBDC',
+                        'bk-charcoal': '#1A1A1A'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-bk-yellow dark:bg-bk-charcoal text-bk-dark dark:text-white min-h-screen">
+    <nav class="p-6 flex justify-between items-center glass sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="bg-bk-red text-white p-2 rounded-xl">
+                <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
+            </div>
+            <h1 class="text-xl font-extrabold uppercase tracking-tighter">Admin Panel</h1>
+        </div>
+        <a href="index.html" class="flex items-center gap-2 text-sm font-bold bg-white/50 dark:bg-white/5 px-4 py-2 rounded-full hover:bg-bk-red hover:text-white transition-all">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> Customer View
+        </a>
+    </nav>
+
+    <main class="p-6 max-w-7xl mx-auto">
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="glass p-6 rounded-[30px] flex items-center gap-4 animate-fade">
+                <div class="w-12 h-12 bg-green-500/20 text-green-500 rounded-2xl flex items-center justify-center">
+                    <i data-lucide="banknote" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs opacity-50 font-bold uppercase">Total Revenue</p>
+                    <h2 class="text-2xl font-extrabold" id="statRevenue">Rp 0</h2>
+                </div>
+            </div>
+            <div class="glass p-6 rounded-[30px] flex items-center gap-4 animate-fade" style="animation-delay: 0.1s">
+                <div class="w-12 h-12 bg-bk-red/20 text-bk-red rounded-2xl flex items-center justify-center">
+                    <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs opacity-50 font-bold uppercase">Total Orders</p>
+                    <h2 class="text-2xl font-extrabold" id="statOrders">0</h2>
+                </div>
+            </div>
+            <div class="glass p-6 rounded-[30px] flex items-center gap-4 animate-fade" style="animation-delay: 0.2s">
+                <div class="w-12 h-12 bg-yellow-500/20 text-yellow-500 rounded-2xl flex items-center justify-center">
+                    <i data-lucide="star" class="w-6 h-6 fill-yellow-500"></i>
+                </div>
+                <div>
+                    <p class="text-xs opacity-50 font-bold uppercase">Avg. Rating</p>
+                    <h2 class="text-2xl font-extrabold" id="statRating">0.0</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Orders Section -->
+        <div class="flex justify-between items-end mb-6">
+            <h3 class="text-2xl font-extrabold uppercase">Recent Orders</h3>
+            <button onclick="clearHistory()" class="text-xs text-red-500 hover:underline font-bold">Clear All Data</button>
+        </div>
+
+        <div id="orderContainer" class="grid grid-cols-1 gap-4">
+            <!-- Order cards will be injected here -->
+        </div>
+
+        <div id="emptyState" class="hidden text-center py-20 animate-fade">
+            <i data-lucide="package-open" class="w-16 h-16 mx-auto opacity-20 mb-4"></i>
+            <p class="opacity-50 font-bold">No orders found in database.</p>
+        </div>
+    </main>
+
+    <script src="admin.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
