@@ -24,19 +24,55 @@
     </script>
 </head>
 <body class="bg-bk-yellow dark:bg-bk-charcoal text-bk-dark dark:text-white min-h-screen">
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="fixed inset-0 bg-bk-yellow dark:bg-bk-charcoal z-[100] flex items-center justify-center p-6 transition-opacity duration-300">
+        <div class="glass p-8 rounded-[30px] max-w-md w-full animate-fade">
+            <div class="flex justify-center mb-6">
+                <div class="bg-bk-red text-white p-3 rounded-2xl">
+                    <i data-lucide="lock" class="w-8 h-8"></i>
+                </div>
+            </div>
+            <h2 class="text-2xl font-extrabold text-center uppercase tracking-tighter mb-2">Admin Access</h2>
+            <p class="text-center opacity-70 text-sm mb-6 font-bold">Please login to access the dashboard</p>
+            
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold opacity-70 mb-1 uppercase">Email Address</label>
+                    <input type="email" id="adminEmail" required placeholder="Enter admin email" class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 outline-none focus:border-bk-red transition-colors font-bold">
+                </div>
+                <div id="loginError" class="text-red-500 text-xs font-bold hidden text-center">Invalid email address. Access denied.</div>
+                <button type="submit" class="w-full bg-bk-red text-white font-extrabold py-3 rounded-xl hover:bg-red-700 transition-colors uppercase">
+                    Login
+                </button>
+            </form>
+            <a href="index.html" class="block text-center mt-4 text-xs font-bold opacity-50 hover:opacity-100 hover:text-bk-red transition-colors">Return to Customer View</a>
+        </div>
+    </div>
+
     <nav class="p-6 flex justify-between items-center glass sticky top-0 z-50">
         <div class="flex items-center gap-3">
             <div class="bg-bk-red text-white p-2 rounded-xl">
                 <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
             </div>
-            <h1 class="text-xl font-extrabold uppercase tracking-tighter">Admin Panel</h1>
+            <h1 class="text-xl font-extrabold uppercase tracking-tighter hidden md:block">Admin Panel</h1>
+            <div class="ml-4 flex gap-2 bg-white/50 dark:bg-black/20 p-1 rounded-full">
+                <button onclick="switchAdminTab('dashboard')" id="tabDashboard" class="px-4 py-1.5 rounded-full text-sm font-bold bg-white dark:bg-bk-charcoal shadow-sm transition-all outline-none">Dashboard</button>
+                <button onclick="switchAdminTab('menu')" id="tabMenu" class="px-4 py-1.5 rounded-full text-sm font-bold opacity-50 hover:opacity-100 transition-all outline-none">Menu Management</button>
+            </div>
         </div>
-        <a href="index.html" class="flex items-center gap-2 text-sm font-bold bg-white/50 dark:bg-white/5 px-4 py-2 rounded-full hover:bg-bk-red hover:text-white transition-all">
-            <i data-lucide="arrow-left" class="w-4 h-4"></i> Customer View
-        </a>
+        <div class="flex items-center gap-3">
+            <a href="index.html" class="flex items-center gap-2 text-sm font-bold bg-white/50 dark:bg-white/5 px-4 py-2 rounded-full hover:bg-bk-red hover:text-white transition-all">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> <span class="hidden sm:inline">Customer View</span>
+            </a>
+            <button onclick="logoutAdmin()" class="flex items-center gap-2 text-sm font-bold bg-white/50 dark:bg-white/5 px-4 py-2 rounded-full hover:bg-red-600 hover:text-white text-red-500 transition-all border border-red-500/20">
+                <i data-lucide="log-out" class="w-4 h-4"></i> <span class="hidden sm:inline">Logout</span>
+            </button>
+        </div>
     </nav>
 
     <main class="p-6 max-w-7xl mx-auto">
+        <!-- Dashboard Tab -->
+        <div id="dashboardTab" class="animate-fade">
         <!-- Stats Grid -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
             <div class="glass p-6 rounded-[30px] flex items-center gap-4 animate-fade">
@@ -82,8 +118,80 @@
             <i data-lucide="package-open" class="w-16 h-16 mx-auto opacity-20 mb-4"></i>
             <p class="opacity-50 font-bold">No orders found in database.</p>
         </div>
+        </div> <!-- End of Dashboard Tab -->
+
+        <!-- Menu Management Tab -->
+        <div id="menuTab" class="hidden animate-fade">
+            <div class="flex justify-between items-end mb-6">
+                <h3 class="text-2xl font-extrabold uppercase">Menu Items</h3>
+                <button onclick="openMenuModal()" class="bg-bk-red text-white px-4 py-2 rounded-full font-bold shadow-lg hover:bg-bk-flame transition-all outline-none flex items-center gap-2">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Add New Item
+                </button>
+            </div>
+            
+            <div id="adminMenuGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Menu items injected here -->
+            </div>
+        </div>
     </main>
 
+    <!-- Menu Item Modal -->
+    <div id="menuModal" class="fixed inset-0 z-[120] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeMenuModal()"></div>
+        <div class="relative glass w-full max-w-lg rounded-[30px] p-6 shadow-2xl animate-fade overflow-y-auto max-h-[90vh] no-scrollbar">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="menuModalTitle" class="text-xl font-extrabold uppercase">Add Menu Item</h2>
+                <button onclick="closeMenuModal()" class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 outline-none"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <form id="menuForm" class="space-y-4">
+                <input type="hidden" id="editOriginalName">
+                
+                <div>
+                    <label class="block text-xs font-bold opacity-70 mb-1">Name</label>
+                    <input type="text" id="itemName" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold opacity-70 mb-1">Price (Rp)</label>
+                        <input type="number" id="itemPrice" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold opacity-70 mb-1">Category</label>
+                        <select id="itemCategory" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red">
+                            <option value="burger">Burger</option>
+                            <option value="snack">Snack</option>
+                            <option value="drink">Drink</option>
+                            <option value="dessert">Dessert</option>
+                            <option value="health">Healthy</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 mb-2">
+                    <input type="checkbox" id="itemSpicy" class="w-4 h-4 text-bk-red rounded focus:ring-bk-red">
+                    <label class="text-xs font-bold">Spicy Item 🔥</label>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold opacity-70 mb-1">Image URL</label>
+                    <input type="url" id="itemImg" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red text-xs">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold opacity-70 mb-1">Description</label>
+                    <textarea id="itemDesc" required rows="3" class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red text-xs"></textarea>
+                </div>
+                
+                <button type="submit" class="w-full bg-bk-red text-white font-extrabold py-3 rounded-xl hover:bg-bk-flame transition-colors uppercase mt-4">
+                    Save Item
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
     <script src="admin.js"></script>
     <script>lucide.createIcons();</script>
 </body>
