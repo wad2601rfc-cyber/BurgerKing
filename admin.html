@@ -148,43 +148,6 @@
                 
                 <!-- Active Chat -->
                 <div class="flex-1 glass rounded-[30px] flex flex-col overflow-hidden relative">
-                    <div id="adminChatHeader" class="bg-blue-600 text-white p-4 hidden flex items-center justify-between shadow-md">
-                        <div class="flex items-center gap-3">
-                            <i data-lucide="user" class="w-5 h-5"></i>
-                            <div>
-                                <h3 class="font-bold text-sm" id="adminChatTitle">Customer</h3>
-                                <p class="text-[10px] opacity-70">Unique ID (DoB Based)</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="adminChatHistory" class="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
-                        <div class="h-full flex items-center justify-center opacity-30 font-bold text-sm">Select a customer to view chat</div>
-                    </div>
-                    
-                    <div id="adminChatInputContainer" class="p-4 border-t border-black/10 dark:border-white/10 flex gap-2 hidden bg-black/5 dark:bg-white/5">
-                        <input type="text" id="adminChatInput" placeholder="Reply to customer..." class="flex-1 bg-white dark:bg-bk-charcoal rounded-full px-4 py-3 outline-none text-sm font-bold shadow-sm" onkeypress="if(event.key==='Enter') sendAdminChat()">
-                        <button onclick="sendAdminChat()" class="bg-blue-600 text-white p-3 rounded-full hover:bg-blue-700 shadow-md outline-none">
-                            <i data-lucide="send" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Live Chat Tab (Instant Messaging Integration) -->
-        <div id="chatTab" class="hidden animate-fade h-[75vh]">
-            <div class="flex h-full gap-6">
-                <!-- Customer List -->
-                <div class="w-1/3 glass rounded-[30px] p-4 flex flex-col overflow-hidden">
-                    <h3 class="font-extrabold uppercase mb-4 px-2 tracking-widest text-sm">Customers</h3>
-                    <div id="adminChatList" class="flex-1 overflow-y-auto flex flex-col gap-2 no-scrollbar">
-                        <div class="opacity-50 text-center text-xs font-bold mt-10">No active chats</div>
-                    </div>
-                </div>
-                
-                <!-- Active Chat -->
-                <div class="flex-1 glass rounded-[30px] flex flex-col overflow-hidden relative">
                     <div id="adminChatHeader" class="bg-bk-red text-white p-4 hidden flex items-center justify-between shadow-md">
                         <div class="flex items-center gap-3">
                             <i data-lucide="user" class="w-5 h-5"></i>
@@ -199,9 +162,27 @@
                         <div class="h-full flex items-center justify-center opacity-30 font-bold text-sm">Select a customer to view chat</div>
                     </div>
                     
+                    <!-- MENU PUSH DROPDOWN -->
+                    <div id="adminMenuPushDropdown" class="absolute bottom-20 left-4 right-4 max-h-80 bg-white/95 dark:bg-bk-charcoal/95 backdrop-blur-md rounded-[20px] shadow-2xl border border-black/10 dark:border-white/10 hidden flex flex-col p-4 z-50 animate-slide">
+                        <div class="flex justify-between items-center mb-3 pb-2 border-b border-black/5 dark:border-white/5">
+                            <span class="text-xs font-extrabold uppercase tracking-wider text-bk-red dark:text-white flex items-center gap-1.5"><i data-lucide="utensils" class="w-4 h-4 text-bk-red"></i> Push Menu Item</span>
+                            <button onclick="toggleAdminMenuPushDropdown()" class="text-xs opacity-50 hover:opacity-100 outline-none"><i data-lucide="x" class="w-4 h-4"></i></button>
+                        </div>
+                        <input type="text" id="adminMenuPushSearch" oninput="filterAdminMenuPushList()" placeholder="Search menu..." class="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-1 focus:ring-bk-red mb-3">
+                        <div id="adminMenuPushList" class="flex-1 overflow-y-auto flex flex-col gap-2 no-scrollbar">
+                            <!-- Injected menu items -->
+                        </div>
+                    </div>
+                    
                     <div id="adminChatInputContainer" class="p-4 border-t border-black/10 dark:border-white/10 flex gap-2 hidden bg-black/5 dark:bg-white/5">
                         <input type="text" id="adminChatInput" placeholder="Reply to customer..." class="flex-1 bg-white dark:bg-bk-charcoal rounded-full px-4 py-3 outline-none text-sm font-bold shadow-sm" onkeypress="if(event.key==='Enter') sendAdminChat()">
-                        <button onclick="sendAdminChat()" class="bg-bk-red text-white p-3 rounded-full hover:bg-red-700 shadow-md outline-none">
+                        
+                        <!-- PUSH MENU BUTTON -->
+                        <button onclick="toggleAdminMenuPushDropdown()" class="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-full shadow-md outline-none transition-all active:scale-95 flex items-center justify-center shrink-0" title="Push Menu to Chat">
+                            <i data-lucide="utensils" class="w-5 h-5"></i>
+                        </button>
+
+                        <button onclick="sendAdminChat()" class="bg-bk-red text-white p-3 rounded-full hover:bg-red-700 shadow-md outline-none transition-all active:scale-95 flex items-center justify-center shrink-0">
                             <i data-lucide="send" class="w-5 h-5"></i>
                         </button>
                     </div>
@@ -227,14 +208,18 @@
                     <input type="text" id="itemName" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red">
                 </div>
                 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-bold opacity-70 mb-1">Price (Rp)</label>
-                        <input type="number" id="itemPrice" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red">
+                        <input type="number" id="itemPrice" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold opacity-70 mb-1">Stock</label>
+                        <input type="number" id="itemStock" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red text-xs" min="0" value="15">
                     </div>
                     <div>
                         <label class="block text-xs font-bold opacity-70 mb-1">Category</label>
-                        <select id="itemCategory" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red">
+                        <select id="itemCategory" required class="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 outline-none focus:border-bk-red text-xs">
                             <option value="burger">Burger</option>
                             <option value="snack">Snack</option>
                             <option value="drink">Drink</option>

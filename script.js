@@ -55,18 +55,23 @@ function renderMenu(items) {
     if (!grid) return;
     grid.innerHTML = '';
     items.forEach((item) => {
+        const isOut = item.stock !== undefined && item.stock <= 0;
+        const clickAction = isOut ? `showToast('${item.name} sedang habis!')` : `openProductDetail('${item.name}')`;
+        const btnHtml = isOut 
+            ? `<span class="bg-gray-400 dark:bg-gray-600 text-white text-[9px] px-2.5 py-1.5 rounded-full font-extrabold shadow-sm select-none">HABIS</span>`
+            : `<button class="bg-bk-red text-white p-2 rounded-full shadow-lg active:scale-90 transition-all outline-none"><i data-lucide="plus" class="w-4 h-4"></i></button>`;
         grid.innerHTML += `
-            <div class="glass p-2 md:p-4 rounded-3xl hover-elevate group cursor-pointer animate-fade" onclick="openProductDetail('${item.name}')">
+            <div class="glass p-2 md:p-4 rounded-3xl hover-elevate group cursor-pointer animate-fade ${isOut ? 'opacity-60' : ''}" onclick="${clickAction}">
                 <div class="relative h-32 md:h-44 rounded-2xl overflow-hidden mb-4">
                     <img src="${item.img}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="${item.name}">
+                    <span class="absolute bottom-2 left-2 bg-black/50 backdrop-blur-sm text-white text-[9px] px-2 py-1 rounded-lg font-bold">Stok: ${item.stock !== undefined ? item.stock : 15}</span>
                     ${item.spicy ? '<span class="absolute top-2 right-2 bg-red-600 text-white text-[10px] px-2 py-1 rounded-full font-bold">HOT 🔥</span>' : ''}
+                    ${isOut ? '<div class="absolute inset-0 bg-black/45 backdrop-blur-[1px] flex items-center justify-center text-white font-extrabold text-xs uppercase tracking-widest">Habis</div>' : ''}
                 </div>
                 <h3 class="font-bold text-sm md:text-base mb-1 truncate">${item.name}</h3>
                 <div class="flex justify-between items-center">
                     <span class="text-bk-red font-extrabold text-sm md:text-lg">Rp ${item.price.toLocaleString()}</span>
-                    <button class="bg-bk-red text-white p-2 rounded-full shadow-lg active:scale-90 transition-all outline-none">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                    </button>
+                    ${btnHtml}
                 </div>
             </div>
         `;
@@ -126,6 +131,21 @@ function openProductDetail(name) {
     const reviews = item.reviews || 0;
     document.getElementById('detailRating').innerText = rating;
     document.getElementById('detailReviewCount').innerText = `(${reviews} Reviews)`;
+    
+    // Handle Stock & Add to Cart state
+    const isOut = item.stock !== undefined && item.stock <= 0;
+    const addBtn = document.getElementById('detailAddToCartBtn');
+    if (addBtn) {
+        if (isOut) {
+            addBtn.innerText = "HABIS TERJUAL";
+            addBtn.disabled = true;
+            addBtn.className = "flex-1 bg-gray-400 dark:bg-gray-600 text-white py-4 rounded-full font-bold cursor-not-allowed outline-none opacity-50";
+        } else {
+            addBtn.innerText = "Add to Cart";
+            addBtn.disabled = false;
+            addBtn.className = "flex-1 bg-bk-red text-white py-4 rounded-full font-bold shadow-xl shadow-bk-red/20 hover:bg-bk-flame transition-all active:scale-95 outline-none";
+        }
+    }
     
     // Render Stars (Interactive)
     const starContainer = document.getElementById('starRating');
@@ -199,8 +219,13 @@ function submitProductRating(n) {
 }
 
 function adjustQty(n) {
-    currentQty = Math.max(1, currentQty + n);
+    if (!selectedItem) return;
+    const maxStock = selectedItem.stock !== undefined ? selectedItem.stock : 15;
+    currentQty = Math.max(1, Math.min(maxStock, currentQty + n));
     document.getElementById('detailQty').innerText = currentQty;
+    if (currentQty >= maxStock && n > 0) {
+        showToast(`Stok terbatas! Hanya tersedia ${maxStock} porsi.`);
+    }
 }
 
 function closeModal(id) {
@@ -464,6 +489,21 @@ function handleCheckout() {
             .then(() => console.log("Order saved to Firebase!"))
             .catch(err => console.error("Firebase save error:", err));
     }
+    
+    // Deduct stock in Firebase and locally
+    cart.forEach(cartItem => {
+        const itemIndex = MENU_DATA.findIndex(i => i.name === cartItem.name);
+        if (itemIndex !== -1) {
+            const currentStock = MENU_DATA[itemIndex].stock !== undefined ? MENU_DATA[itemIndex].stock : 15;
+            const newStock = Math.max(0, currentStock - cartItem.qty);
+            MENU_DATA[itemIndex].stock = newStock;
+            if (db && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+                db.ref('menu/' + itemIndex + '/stock').set(newStock);
+            } else {
+                localStorage.setItem('bk_menu', JSON.stringify(MENU_DATA));
+            }
+        }
+    });
     
     // Clear Cart
     cart = [];
@@ -750,7 +790,7 @@ async function processSmartLogicAsync(query) {
                         content: `You are "KingHelper", an intelligent, extremely helpful and friendly AI assistant agent for Burger King. 
                         Your goals:
                         1. Assist customers by answering questions, recommending foods based on category (spicy, sweet, savory, healthy) or mood.
-                        2. ALWAYS try to suggest cross-selling or up-selling (e.g. if they ask for something cold, offer fruit tea, milkshakes, ice tea, etc.)
+                        2. ALWAYS try to suggest cross-selling or up-selling (e.g. if they ask for something cold, offer shakes, orange juice, or iced lemon tea.)
                         3. If the user wants to buy/order something, PARSE the order into the following format:
                         :::ORDER_JSON:::
                         [
@@ -761,8 +801,8 @@ async function processSmartLogicAsync(query) {
                         ${JSON.stringify(MENU_DATA.map(i => ({name: i.name, category: i.category, price: i.price, spicy: i.spicy})))}
 
                         Rules for parsing orders:
-                        - If they say "something sweet", recommend and parse a sweet item (like "Sundae Chocolate" or "Fruit Tea").
-                        - If they say "something hot" or "spicy" or "something sweet 2 hot 3", match "sweet" to a sweet item and "hot" to a spicy item.
+                        - If they say "something sweet", recommend and parse a sweet dessert item from our menu (like "Soft Serve Cone" or "Hershey's Sundae Pie" or "Warm Apple Pie").
+                        - If they say "something hot" or "spicy" or "something sweet 2 hot 3", match "sweet" to a sweet dessert from our menu (like "Soft Serve Cone" or "Hershey's Sundae Pie") and "hot/spicy" to a spicy item from our menu (like "Spicy Angry Burger" or "Spicy Chicken Wings").
                         - You must write the JSON block EXACTLY as specified above so our code can parse it.
                         - Respond in a warm, polite manner. Use emojis.`
                     },
@@ -779,25 +819,36 @@ async function processSmartLogicAsync(query) {
         }
 
         const data = await response.json();
-        let reply = data.choices[0].message.content;
-
-        // Parse order JSON if present
+        let reply = data.choices        // Parse order JSON if present
         const orderRegex = /:::ORDER_JSON:::([\s\S]*?):::END_ORDER_JSON:::/;
         const match = reply.match(orderRegex);
         if (match) {
             try {
                 const parsed = JSON.parse(match[1].trim());
-                let addedItems = [];
+                let cardHtmls = [];
                 parsed.forEach(p => {
                     // Fuzzy match item name
                     const item = MENU_DATA.find(i => i.name.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(i.name.toLowerCase()));
                     if (item) {
-                        addToCartFromChat(item.name, p.qty || 1);
-                        addedItems.push(`${item.name} (${p.qty || 1}x)`);
+                        const qty = p.qty || 1;
+                        cardHtmls.push(`
+                            <div class="chat-card bg-white/10 p-3 rounded-2xl mb-3 flex flex-col gap-2 border border-white/5 text-left mt-2">
+                                <img src="${item.img}" class="w-full h-28 object-cover rounded-xl">
+                                <div class="flex flex-col">
+                                    <p class="font-extrabold text-xs text-white">${item.name}</p>
+                                    <p class="text-bk-red font-black text-[11px] mb-1">Rp ${item.price.toLocaleString()}</p>
+                                    <p class="text-[9px] opacity-70 mb-2 leading-tight">${item.desc.substring(0, 75)}...</p>
+                                    <button onclick="addToCartFromChat('${item.name}', ${qty})" 
+                                            class="w-full bg-bk-red hover:bg-bk-flame text-white py-2 rounded-xl font-extrabold text-[10px] active:scale-95 transition-all shadow-md flex items-center justify-center gap-2">
+                                        <i data-lucide="shopping-cart" class="w-3.5 h-3.5"></i> Add ${qty} to Cart
+                                    </button>
+                                </div>
+                            </div>
+                        `);
                     }
                 });
-                if (addedItems.length > 0) {
-                    reply = reply.replace(orderRegex, "") + `<br><br><div class="bg-green-500/20 dark:bg-green-500/10 p-3 rounded-2xl text-xs font-bold text-green-700 dark:text-green-400 mt-2 border border-green-500/20">🛒 Added to Cart: ${addedItems.join(", ")}</div>`;
+                if (cardHtmls.length > 0) {
+                    reply = reply.replace(orderRegex, "") + `<br><br>` + cardHtmls.join("");
                 }
             } catch(err) {
                 console.error("Order parsing failed", err);
@@ -812,16 +863,176 @@ async function processSmartLogicAsync(query) {
 }
 
 function processSmartLogic(query) {
-    const q = query.toLowerCase();
-    let results = [];
-    let message = "";
-
-    // 1. Check for Greetings
+    const q = query.toLowerCase().trim();
+    
+    const categoriesMap = {
+        sweet: { name: "Soft Serve Cone", price: 10000, keyword: ["sweet", "manis", "dessert", "lemon tea", "shake", "pie", "cone"] },
+        spicy: { name: "Spicy Angry Burger", price: 65000, keyword: ["spicy", "hot", "pedas", "angry", "wings"] },
+        savory: { name: "Whopper King", price: 55000, keyword: ["savory", "asin", "gurih", "burger", "fries", "onion rings", "cheeseburger"] },
+        healthy: { name: "Garden Side Salad", price: 20000, keyword: ["healthy", "sehat", "salad", "plant-based", "apple"] }
+    };
+    
+    let parsedOrders = [];
+    let matchFound = false;
+    let matchedRanges = []; // Track occupied [start, end] ranges to avoid overlaps
+    
+    // Helper to get diverse menu items for a category
+    const getCategoryItems = (category) => {
+        if (category === "sweet") {
+            // Strictly desserts only
+            return MENU_DATA.filter(i => i.category === "dessert");
+        } else if (category === "spicy") {
+            return MENU_DATA.filter(i => i.spicy === true);
+        } else if (category === "savory") {
+            return MENU_DATA.filter(i => ["burger", "snack"].includes(i.category) && !i.spicy);
+        } else if (category === "healthy") {
+            return MENU_DATA.filter(i => i.category === "health");
+        }
+        return [];
+    };
+    
+    // Pattern 1: category followed by quantity (e.g. "sweet 2", "spicy 1")
+    const regex1 = /(?:something\s+)?(sweet|manis|spicy|hot|pedas|savory|gurih|healthy|sehat)\s*(\d+)/g;
+    let match;
+    while ((match = regex1.exec(q)) !== null) {
+        matchFound = true;
+        const start = match.index;
+        const end = regex1.lastIndex;
+        matchedRanges.push([start, end]);
+        
+        const keyword = match[1];
+        const qty = parseInt(match[2]);
+        
+        let category = "savory";
+        if (["sweet", "manis"].includes(keyword)) category = "sweet";
+        else if (["spicy", "hot", "pedas"].includes(keyword)) category = "spicy";
+        else if (["healthy", "sehat"].includes(keyword)) category = "healthy";
+        else if (["savory", "gurih"].includes(keyword)) category = "savory";
+        
+        const catItems = getCategoryItems(category);
+        if (catItems.length > 0) {
+            // Push distinct items from the category up to the requested qty
+            for (let i = 0; i < qty; i++) {
+                const item = catItems[i % catItems.length];
+                parsedOrders.push({
+                    category: category,
+                    qty: 1, // Distinct item, qty is 1
+                    itemName: item.name,
+                    itemPrice: item.price
+                });
+            }
+        }
+    }
+    
+    // Pattern 2: quantity followed by category (e.g. "2 sweet", "1 spicy")
+    const regex2 = /(\d+)\s*(?:something\s+)?(sweet|manis|spicy|hot|pedas|savory|gurih|healthy|sehat)/g;
+    while ((match = regex2.exec(q)) !== null) {
+        const start = match.index;
+        const end = regex2.lastIndex;
+        
+        // Skip if this matches an already parsed category from Pattern 1
+        const overlaps = matchedRanges.some(([rStart, rEnd]) => {
+            return (start >= rStart && start < rEnd) || (end > rStart && end <= rEnd);
+        });
+        
+        if (!overlaps) {
+            matchFound = true;
+            matchedRanges.push([start, end]);
+            
+            const qty = parseInt(match[1]);
+            const keyword = match[2];
+            
+            let category = "savory";
+            if (["sweet", "manis"].includes(keyword)) category = "sweet";
+            else if (["spicy", "hot", "pedas"].includes(keyword)) category = "spicy";
+            else if (["healthy", "sehat"].includes(keyword)) category = "healthy";
+            else if (["savory", "gurih"].includes(keyword)) category = "savory";
+            
+            const catItems = getCategoryItems(category);
+            if (catItems.length > 0) {
+                for (let i = 0; i < qty; i++) {
+                    const item = catItems[i % catItems.length];
+                    parsedOrders.push({
+                        category: category,
+                        qty: 1,
+                        itemName: item.name,
+                        itemPrice: item.price
+                    });
+                }
+            }
+        }
+    }
+    
+    // If no category keywords, check for specific menu item names and quantities
+    if (!matchFound) {
+        MENU_DATA.forEach(item => {
+            const nameLower = item.name.toLowerCase();
+            const escName = nameLower.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const itemRegexes = [
+                new RegExp(`(?:${escName})\\s*(\\d+)`, 'g'),
+                new RegExp(`(\\d+)\\s*(?:${escName})`, 'g')
+            ];
+            
+            itemRegexes.forEach(regex => {
+                let m;
+                while ((m = regex.exec(q)) !== null) {
+                    matchFound = true;
+                    let qty = parseInt(m[1]);
+                    parsedOrders.push({
+                        category: item.category,
+                        qty: qty, // Keep user's exact quantity for specific items
+                        itemName: item.name,
+                        itemPrice: item.price
+                    });
+                }
+            });
+        });
+    }
+    
+    if (parsedOrders.length > 0) {
+        let html = `Saya menemukan beberapa menu yang cocok dengan permintaan Anda! Silakan klik tombol di bawah untuk memasukkan ke keranjang belanja Anda: 🛒<br><br>`;
+        let responseParts = [];
+        let total = 0;
+        
+        parsedOrders.forEach(order => {
+            const item = MENU_DATA.find(i => i.name === order.itemName);
+            if (item) {
+                const subtotal = order.qty * order.itemPrice;
+                total += subtotal;
+                const priceK = `${order.itemPrice / 1000}k`;
+                responseParts.push(`${order.itemName.toLowerCase()} ${order.qty}x${priceK}`);
+                
+                html += `
+                    <div class="chat-card bg-white/10 p-3 rounded-2xl mb-3 flex flex-col gap-2 border border-white/5 text-left mt-2">
+                        <img src="${item.img}" class="w-full h-28 object-cover rounded-xl">
+                        <div class="flex flex-col">
+                            <p class="font-extrabold text-xs text-white">${item.name}</p>
+                            <p class="text-bk-red font-black text-[11px] mb-1">Rp ${item.price.toLocaleString()}</p>
+                            <p class="text-[9px] opacity-70 mb-2 leading-tight">${item.desc.substring(0, 75)}...</p>
+                            <button onclick="addToCartFromChat('${item.name}', ${order.qty})" 
+                                    class="w-full bg-bk-red hover:bg-bk-flame text-white py-2 rounded-xl font-extrabold text-[10px] active:scale-95 transition-all shadow-md flex items-center justify-center gap-2">
+                                <i data-lucide="shopping-cart" class="w-3.5 h-3.5"></i> Add ${order.qty} to Cart
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        const totalK = `${total / 1000}k`;
+        const responseText = `${responseParts.join(" ")} total ${totalK}`;
+        
+        html += `<br><b>Hasil Terjemahan Sistem:</b><br>` +
+                `<code class="bg-black/10 dark:bg-white/10 px-2 py-1 rounded text-xs font-bold text-bk-red">S: ${responseText}</code>`;
+                
+        return html;
+    }
+    
+    // Classic recommendations fallback
     if (q.includes("halo") || q.includes("hi") || q.includes("hello") || q.includes("hai")) {
         return "Hello! I'm KingHelper. Looking for something <b>spicy</b>, <b>sweet</b>, <b>savory</b>, or <b>healthy</b> today? Just ask me!";
     }
 
-    // 2. Identify Category
     let foundCategory = null;
     for (const [cat, keywords] of Object.entries(BOT_CONFIG.categories)) {
         if (keywords.some(k => q.includes(k))) {
@@ -829,6 +1040,9 @@ function processSmartLogic(query) {
             break;
         }
     }
+
+    let results = [];
+    let message = "";
 
     if (foundCategory === "spicy") {
         results = MENU_DATA.filter(i => i.spicy);
@@ -844,7 +1058,6 @@ function processSmartLogic(query) {
         message = "Classic <b>Savory</b> flavors you'll love! 🍔";
     }
 
-    // 3. Fallback for specific menu item names
     if (results.length === 0) {
         const item = MENU_DATA.find(i => q.includes(i.name.toLowerCase()));
         if (item) {
@@ -853,12 +1066,11 @@ function processSmartLogic(query) {
         }
     }
 
-    // 4. Final Response Generation
     if (results.length > 0) {
         let html = `${message}<br><br>`;
         results.slice(0, 3).forEach(item => {
             html += `
-                <div class="chat-card bg-white/10 p-2 rounded-2xl mb-2 flex flex-col gap-2 border border-white/5">
+                <div class="chat-card bg-white/10 p-2 rounded-2xl mb-2 flex flex-col gap-2 border border-white/5 text-left">
                     <img src="${item.img}" class="w-full h-24 object-cover rounded-xl">
                     <div class="flex flex-col">
                         <p class="font-bold text-xs">${item.name}</p>
@@ -871,14 +1083,12 @@ function processSmartLogic(query) {
         return html;
     }
 
-    return "I'm sorry, I couldn't find exactly that. You can try asking for <b>spicy</b>, <b>sweet</b>, <b>savory</b>, or <b>healthy</b> food! Or just ask for the <b>menu</b>.";
+    return "Maaf, saya tidak dapat menemukan menu itu. Anda bisa mencoba memesan seperti: <b>\"something sweet 2 hot 3\"</b> atau <b>\"whopper king 2\"</b>, atau sebutkan kategori seperti <b>spicy</b>, <b>sweet</b>, <b>savory</b>, atau <b>healthy</b>!";
 }
 
 // Function to show automated suggestions
 function showAiSuggestion(text) {
-    if (document.getElementById('chatWindow').classList.contains('hidden')) {
-        toggleChat();
-    }
+    // Keep adding the suggestion to chat in the background, but do NOT automatically open the chat window to respect user preference
     addMessage(text);
 }
 
@@ -1159,21 +1369,243 @@ function sendLiveChat() {
 
 function renderLiveChatHistory(data) {
     const history = document.getElementById('liveChatHistory');
-    history.innerHTML = '<div class="text-center text-[10px] font-bold opacity-40 my-2">Chat Started with ' + currentCustomerId + '</div>';
+    history.innerHTML = '<div class="text-center text-[10px] font-bold opacity-40 my-2">Chat Started</div>';
     
     if (data) {
-        const messages = Object.values(data).sort((a,b) => a.timestamp - b.timestamp);
-        messages.forEach(msg => {
+        const entries = Object.entries(data).sort((a,b) => a[1].timestamp - b[1].timestamp);
+        entries.forEach(([msgKey, msg]) => {
             const isUser = msg.sender === 'customer';
+            let contentHtml = msg.text;
+            
+            if (msg.type === 'menu_push') {
+                if (msg.status === 'ordered') {
+                    contentHtml = `
+                        <div class="flex flex-col gap-2 bg-white dark:bg-bk-charcoal p-3 rounded-2xl border border-black/5 dark:border-white/5 max-w-[240px] text-left">
+                            <img src="${msg.itemImg}" class="w-full h-24 object-cover rounded-xl shadow-sm">
+                            <h4 class="font-extrabold text-xs text-bk-dark dark:text-white leading-tight">${msg.itemName}</h4>
+                            <p class="text-bk-red font-black text-xs">Rp ${msg.itemPrice.toLocaleString()}</p>
+                            <div class="mt-2 bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 p-2.5 rounded-xl text-center">
+                                <p class="text-[10px] font-bold flex items-center justify-center gap-1"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Ordered!</p>
+                                <p class="text-[9px] opacity-80 mt-0.5">${msg.orderQty || 1}x Burger • Paid via ${msg.orderPayment || 'Cash'}</p>
+                            </div>
+                        </div>
+                    `;
+                } else if (msg.status === 'ordering') {
+                    const savedAddress = document.getElementById('deliveryAddress')?.value || localStorage.getItem('bk_address') || '';
+                    const savedPhone = document.getElementById('customerPhone')?.value || localStorage.getItem('bk_phone') || '';
+                    
+                    contentHtml = `
+                        <div class="flex flex-col gap-3 bg-white dark:bg-bk-charcoal p-3.5 rounded-2xl border-2 border-bk-red/30 max-w-[250px] shadow-lg animate-fade text-left">
+                            <h4 class="font-extrabold text-xs text-bk-dark dark:text-white leading-tight">Order: ${msg.itemName}</h4>
+                            
+                            <!-- Qty -->
+                            <div class="flex items-center justify-between bg-black/5 dark:bg-white/5 p-1 rounded-xl">
+                                <button onclick="event.stopPropagation(); changeChatOrderQty('${msgKey}', -1)" class="w-7 h-7 rounded-full bg-white dark:bg-bk-charcoal flex items-center justify-center font-bold text-xs shadow-sm hover:bg-bk-red hover:text-white transition-all outline-none">-</button>
+                                <span class="text-xs font-black text-bk-dark dark:text-white" id="qty-${msgKey}">${msg.tempQty || 1}</span>
+                                <button onclick="event.stopPropagation(); changeChatOrderQty('${msgKey}', 1)" class="w-7 h-7 rounded-full bg-white dark:bg-bk-charcoal flex items-center justify-center font-bold text-xs shadow-sm hover:bg-bk-red hover:text-white transition-all outline-none">+</button>
+                            </div>
+                            
+                            <!-- Inputs -->
+                            <div class="space-y-2">
+                                <input type="text" id="address-${msgKey}" placeholder="Alamat Pengiriman" value="${savedAddress}" class="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 p-2 rounded-xl text-[10px] font-bold outline-none focus:border-bk-red">
+                                <input type="tel" id="phone-${msgKey}" placeholder="Nomor WhatsApp" value="${savedPhone}" class="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 p-2 rounded-xl text-[10px] font-bold outline-none focus:border-bk-red">
+                                
+                                <!-- Payment Method Select -->
+                                <div class="space-y-1">
+                                    <label class="text-[8px] font-extrabold opacity-60 uppercase tracking-wider">Payment Method</label>
+                                    <select id="payment-${msgKey}" onchange="event.stopPropagation(); toggleChatSubPayments('${msgKey}')" class="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 p-2 rounded-xl text-[10px] font-bold outline-none focus:border-bk-red">
+                                        <option value="Cash">Cash (Bayar di Tempat)</option>
+                                        <option value="E-Wallet">E-Wallet (OVO, GoPay, DANA, ShopeePay)</option>
+                                        <option value="Card">Debit / Kredit (Visa, MC, BCA)</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- E-Wallet Sub -->
+                                <div id="chat-ewallet-sub-${msgKey}" class="hidden space-y-1">
+                                    <label class="text-[8px] font-extrabold opacity-60 uppercase tracking-wider">Select E-Wallet</label>
+                                    <select id="sub-ewallet-${msgKey}" class="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 p-2 rounded-xl text-[10px] font-bold outline-none focus:border-bk-red">
+                                        <option value="GoPay">GoPay</option>
+                                        <option value="OVO">OVO</option>
+                                        <option value="DANA">DANA</option>
+                                        <option value="ShopeePay">ShopeePay</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Card Sub -->
+                                <div id="chat-card-sub-${msgKey}" class="hidden space-y-1">
+                                    <label class="text-[8px] font-extrabold opacity-60 uppercase tracking-wider">Select Card Type</label>
+                                    <select id="sub-card-${msgKey}" class="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 p-2 rounded-xl text-[10px] font-bold outline-none focus:border-bk-red">
+                                        <option value="Visa">Visa</option>
+                                        <option value="Mastercard">Mastercard</option>
+                                        <option value="BCA Card">BCA Card</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <button onclick="event.stopPropagation(); cancelChatOrder('${msgKey}')" class="flex-1 bg-black/10 dark:bg-white/10 hover:bg-black/20 text-bk-dark dark:text-white py-2 rounded-xl text-[10px] font-bold active:scale-95 transition-all outline-none">Batal</button>
+                                <button onclick="event.stopPropagation(); confirmChatOrder('${msgKey}', '${msg.itemName.replace(/'/g, "\\'")}', ${msg.itemPrice})" class="flex-1 bg-bk-red text-white py-2 rounded-xl text-[10px] font-black hover:bg-bk-flame active:scale-95 transition-all shadow-md outline-none">Pesan</button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    contentHtml = `
+                        <div class="flex flex-col gap-2 bg-white dark:bg-bk-charcoal p-3 rounded-2xl border border-black/5 dark:border-white/5 max-w-[240px] shadow-sm text-left">
+                            <img src="${msg.itemImg}" class="w-full h-28 object-cover rounded-xl shadow-inner">
+                            <h4 class="font-extrabold text-xs text-bk-dark dark:text-white leading-tight">${msg.itemName}</h4>
+                            <p class="text-[9px] opacity-75 line-clamp-2">${msg.itemDesc || ''}</p>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="text-bk-red font-black text-xs">Rp ${msg.itemPrice.toLocaleString()}</span>
+                            </div>
+                            <button onclick="event.stopPropagation(); startChatOrder('${msgKey}')" class="w-full bg-bk-red text-white py-2 rounded-xl text-[10px] font-extrabold hover:bg-bk-flame transition-all active:scale-95 shadow-sm mt-1 flex items-center justify-center gap-1 outline-none">
+                                <i data-lucide="shopping-cart" class="w-3 h-3"></i> Order Direct
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+            
             history.innerHTML += `
                 <div class="p-3 rounded-2xl max-w-[85%] text-sm shadow-sm animate-fade ${isUser ? 'bg-bk-red text-white rounded-tr-none self-end' : 'bg-gray-200 dark:bg-white/10 text-bk-dark dark:text-white rounded-tl-none self-start'}">
-                    ${msg.text}
+                    ${contentHtml}
                     <div class="text-[8px] opacity-50 mt-1 text-right">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                 </div>
             `;
         });
         history.scrollTop = history.scrollHeight;
     }
+    lucide.createIcons();
+}
+
+/**
+ * CLIENT CHAT ORDER SYSTEM
+ */
+function startChatOrder(msgKey) {
+    if (!currentCustomerId || typeof db === 'undefined') return;
+    db.ref(`chats/${currentCustomerId}/${msgKey}`).update({
+        status: 'ordering',
+        tempQty: 1
+    });
+}
+
+function changeChatOrderQty(msgKey, delta) {
+    if (!currentCustomerId || typeof db === 'undefined') return;
+    const ref = db.ref(`chats/${currentCustomerId}/${msgKey}`);
+    ref.once('value').then(snap => {
+        const data = snap.val();
+        if (data) {
+            const newQty = Math.max(1, (data.tempQty || 1) + delta);
+            ref.update({ tempQty: newQty });
+        }
+    });
+}
+
+function cancelChatOrder(msgKey) {
+    if (!currentCustomerId || typeof db === 'undefined') return;
+    db.ref(`chats/${currentCustomerId}/${msgKey}`).update({
+        status: null,
+        tempQty: null
+    });
+}
+
+function toggleChatSubPayments(msgKey) {
+    const payment = document.getElementById(`payment-${msgKey}`).value;
+    const ewalletSub = document.getElementById(`chat-ewallet-sub-${msgKey}`);
+    const cardSub = document.getElementById(`chat-card-sub-${msgKey}`);
+    
+    if (payment === 'E-Wallet') {
+        ewalletSub.classList.remove('hidden');
+        cardSub.classList.add('hidden');
+    } else if (payment === 'Card') {
+        ewalletSub.classList.add('hidden');
+        cardSub.classList.remove('hidden');
+    } else {
+        ewalletSub.classList.add('hidden');
+        cardSub.classList.add('hidden');
+    }
+}
+
+function confirmChatOrder(msgKey, itemName, itemPrice) {
+    const address = document.getElementById(`address-${msgKey}`).value.trim();
+    const phone = document.getElementById(`phone-${msgKey}`).value.trim();
+    const paymentType = document.getElementById(`payment-${msgKey}`).value;
+    
+    if (!address) return showToast("Silakan masukkan alamat pengiriman!");
+    if (!phone) return showToast("Silakan masukkan nomor WhatsApp Anda!");
+    
+    let paymentText = paymentType;
+    if (paymentType === 'E-Wallet') {
+        const subEwallet = document.getElementById(`sub-ewallet-${msgKey}`).value;
+        paymentText = `E-Wallet (${subEwallet})`;
+    } else if (paymentType === 'Card') {
+        const subCard = document.getElementById(`sub-card-${msgKey}`).value;
+        paymentText = `Card (${subCard})`;
+    }
+    
+    localStorage.setItem('bk_address', address);
+    localStorage.setItem('bk_phone', phone);
+    
+    const mainAddress = document.getElementById('deliveryAddress');
+    const mainPhone = document.getElementById('customerPhone');
+    if (mainAddress) mainAddress.value = address;
+    if (mainPhone) mainPhone.value = phone;
+
+    const ref = db.ref(`chats/${currentCustomerId}/${msgKey}`);
+    ref.once('value').then(snap => {
+        const data = snap.val();
+        if (!data) return;
+        
+        const qty = data.tempQty || 1;
+        const totalPrice = qty * itemPrice;
+        
+        const orderData = { 
+            items: [`${qty}x ${itemName}`], 
+            time: new Date().toLocaleString(), 
+            timestamp: Date.now(),
+            total: `Rp ${totalPrice.toLocaleString()}`,
+            payment: paymentText,
+            address: address,
+            phone: phone,
+            rating: 0,
+            feedback: ""
+        };
+
+        const history = JSON.parse(localStorage.getItem('bk_history') || '[]');
+        history.push(orderData);
+        localStorage.setItem('bk_history', JSON.stringify(history));
+
+        if (typeof db !== 'undefined') {
+            db.ref('orders/' + orderData.timestamp).set(orderData);
+            
+            ref.update({
+                status: 'ordered',
+                orderQty: qty,
+                orderTotal: totalPrice,
+                orderPayment: paymentText
+            });
+            
+            db.ref('chats/' + currentCustomerId).push({
+                sender: 'customer',
+                text: `Pesan via Chat Sukses! Saya memesan ${qty}x ${itemName} (Total: Rp ${totalPrice.toLocaleString()}) via ${paymentText}`,
+                timestamp: Date.now()
+            });
+        }
+        
+        // Deduct stock in Firebase and locally
+        const itemIndex = MENU_DATA.findIndex(i => i.name === itemName);
+        if (itemIndex !== -1) {
+            const currentStock = MENU_DATA[itemIndex].stock !== undefined ? MENU_DATA[itemIndex].stock : 15;
+            const newStock = Math.max(0, currentStock - qty);
+            MENU_DATA[itemIndex].stock = newStock;
+            if (typeof db !== 'undefined' && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+                db.ref('menu/' + itemIndex + '/stock').set(newStock);
+            } else {
+                localStorage.setItem('bk_menu', JSON.stringify(MENU_DATA));
+            }
+        }
+        
+        showToast(`Sukses memesan ${qty}x ${itemName}! 🍔`);
+    });
 }
 
 // BOOTSTRAP

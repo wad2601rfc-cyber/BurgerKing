@@ -82,6 +82,15 @@
                 <i data-lucide="moon" id="moonIcon" class="w-6 h-6"></i>
                 <i data-lucide="sun" id="sunIcon" class="w-6 h-6 hidden"></i>
             </button>
+            <button onclick="toggleLiveChat()"
+                class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-all relative outline-none"
+                title="Live Chat Support">
+                <i data-lucide="headphones" class="w-6 h-6"></i>
+                <span class="absolute top-1.5 right-1.5 flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-bk-red"></span>
+                </span>
+            </button>
             <button onclick="openHistory()"
                 class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-all relative outline-none"
                 title="Order History">
@@ -285,7 +294,7 @@
                         <button onclick="adjustQty(1)"
                             class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-bk-red hover:text-white transition-all outline-none">+</button>
                     </div>
-                    <button onclick="confirmAddToCart()"
+                    <button onclick="confirmAddToCart()" id="detailAddToCartBtn"
                         class="flex-1 bg-bk-red text-white py-4 rounded-full font-bold shadow-xl shadow-bk-red/20 hover:bg-bk-flame transition-all active:scale-95 outline-none">Add
                         to Cart</button>
                 </div>
@@ -311,7 +320,7 @@
                 <!-- Items list -->
             </div>
 
-            <div class="p-6 glass border-t border-black/10 dark:border-white/10 no-scrollbar overflow-y-auto">
+            <div class="p-6 glass border-t border-black/10 dark:border-white/10 no-scrollbar overflow-y-auto max-h-[60%] shrink-0">
                 <!-- Address Section -->
                 <div class="flex flex-col gap-2 mb-6">
                     <div class="flex justify-between items-center text-sm opacity-70">
@@ -639,45 +648,47 @@
         </div>
     </div>
 
-    <!-- LIVE CHAT WIDGET (Customer to Admin) -->
-    <div class="fixed bottom-6 left-6 z-[60]">
-        <button onclick="toggleLiveChat()" class="w-16 h-16 bg-bk-red hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl transition-all active:scale-90 group relative outline-none">
-            <i data-lucide="headphones" class="w-8 h-8 group-hover:hidden"></i>
-            <i data-lucide="x" class="w-8 h-8 hidden group-hover:block"></i>
-            <span class="absolute -top-1 -right-1 flex h-4 w-4">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-4 w-4 bg-bk-red border-2 border-white"></span>
-            </span>
-        </button>
-
-        <div id="liveChatWindow" class="absolute bottom-20 left-0 w-80 md:w-96 h-[500px] glass rounded-3xl shadow-2xl hidden flex-col overflow-hidden animate-slide">
-            <div class="bg-bk-red p-4 text-white flex items-center gap-3">
-                <i data-lucide="headphones" class="w-6 h-6"></i>
-                <div>
-                    <h3 class="font-bold">Live Support</h3>
-                    <p class="text-[10px] text-white/70 uppercase tracking-widest">Chat directly with Admin</p>
+    <!-- LIVE CHAT WINDOW (Customer to Admin - Centered Modal) -->
+    <div id="liveChatWindow" class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4">
+        <!-- Backdrop blur -->
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm animate-fade" onclick="toggleLiveChat()"></div>
+        
+        <!-- Modal Content -->
+        <div class="relative glass w-full max-w-lg h-[550px] rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-fade z-10">
+            <div class="bg-bk-red p-6 text-white flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
+                        <i data-lucide="headphones" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-lg uppercase tracking-tight">Live Support</h3>
+                        <p class="text-[10px] text-white/70 uppercase tracking-widest text-left">Chat directly with Admin</p>
+                    </div>
                 </div>
+                <button onclick="toggleLiveChat()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all outline-none">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
             </div>
             
             <!-- DoB Registration Form (Rubric: Unique ID based on DoB) -->
-            <div id="liveChatRegistration" class="p-6 flex flex-col gap-4 bg-white dark:bg-bk-charcoal h-full flex-1">
+            <div id="liveChatRegistration" class="p-8 flex flex-col gap-4 bg-white dark:bg-bk-charcoal h-full flex-1 justify-center">
                 <p class="text-xs font-bold opacity-70 text-center mb-2">Please enter your details to generate your Unique Chat ID</p>
-                <input type="text" id="chatName" placeholder="Your Name" class="w-full bg-black/5 dark:bg-white/5 p-3 rounded-xl outline-none font-bold text-sm">
+                <input type="text" id="chatName" placeholder="Your Name" class="w-full bg-black/5 dark:bg-white/5 p-3.5 rounded-2xl outline-none font-bold text-sm">
                 <div class="flex flex-col gap-1">
                     <label class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Date of Birth</label>
-                    <input type="date" id="chatDoB" class="w-full bg-black/5 dark:bg-white/5 p-3 rounded-xl outline-none text-sm font-bold">
+                    <input type="date" id="chatDoB" class="w-full bg-black/5 dark:bg-white/5 p-3.5 rounded-2xl outline-none text-sm font-bold">
                 </div>
-                <button onclick="startLiveChat()" class="w-full bg-bk-red text-white font-extrabold py-3 rounded-xl mt-4 active:scale-95 transition-all">Start Chatting</button>
+                <button onclick="startLiveChat()" class="w-full bg-bk-red text-white font-extrabold py-3.5 rounded-2xl mt-4 active:scale-95 transition-all">Start Chatting</button>
             </div>
 
             <!-- Chat Interface -->
-            <div id="liveChatInterface" class="hidden flex-col flex-1 bg-white dark:bg-bk-charcoal overflow-hidden">
-                <div id="liveChatHistory" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3 no-scrollbar">
+            <div id="liveChatInterface" class="hidden flex-col flex-1 min-h-0 bg-white dark:bg-bk-charcoal overflow-hidden">
+                <div id="liveChatHistory" class="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-3 no-scrollbar">
                     <div class="text-center text-[10px] font-bold opacity-40 my-2">Chat Started</div>
                 </div>
-                <div class="p-3 border-t border-black/10 dark:border-white/10 flex gap-2">
-                    <input type="text" id="liveChatInput" placeholder="Type message..." class="flex-1 bg-black/5 dark:bg-white/5 border-none rounded-full px-4 py-2 outline-none text-sm" onkeypress="if(event.key==='Enter') sendLiveChat()">
-                    <button onclick="sendLiveChat()" class="bg-bk-red text-white p-2.5 rounded-full hover:bg-red-700 transition-all outline-none">
+                <div class="p-4 border-t border-black/10 dark:border-white/10 flex gap-2 bg-white dark:bg-bk-charcoal">
+                    <input type="text" id="liveChatInput" placeholder="Type message..." class="flex-1 bg-black/5 dark:bg-white/5 border-none rounded-full px-4 py-3 outline-none text-sm text-bk-dark dark:text-white" onkeypress="if(event.key==='Enter') sendLiveChat()">
+                    <button onclick="sendLiveChat()" class="bg-bk-red text-white p-3 rounded-full hover:bg-red-700 transition-all outline-none">
                         <i data-lucide="send" class="w-4 h-4"></i>
                     </button>
                 </div>

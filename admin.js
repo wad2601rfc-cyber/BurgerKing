@@ -191,6 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = {
                 name: document.getElementById('itemName').value,
                 price: parseInt(document.getElementById('itemPrice').value),
+                stock: parseInt(document.getElementById('itemStock').value) || 0,
                 category: document.getElementById('itemCategory').value,
                 spicy: document.getElementById('itemSpicy').checked,
                 img: document.getElementById('itemImg').value,
@@ -256,12 +257,20 @@ function loadAdminMenu() {
                 </div>
                 <p class="text-xs opacity-60 capitalize">${item.category}</p>
                 <p class="text-bk-red font-extrabold text-sm mt-1">Rp ${item.price.toLocaleString()}</p>
+                
+                <!-- Inline Stock Control -->
+                <div class="flex items-center gap-2 mt-2 bg-black/5 dark:bg-white/5 p-1 rounded-xl w-fit">
+                    <span class="text-[9px] font-extrabold opacity-60 px-1 uppercase tracking-wider">Stok:</span>
+                    <button onclick="adjustAdminStock('${item.name.replace(/'/g, "\\'")}', -1)" class="w-5 h-5 rounded-lg bg-white dark:bg-bk-charcoal flex items-center justify-center font-bold text-xs active:scale-90 transition-all outline-none shadow-sm hover:bg-gray-100 dark:hover:bg-white/10">-</button>
+                    <input type="number" value="${item.stock !== undefined ? item.stock : 15}" onchange="setAdminStock('${item.name.replace(/'/g, "\\'")}', this.value)" class="w-8 text-center bg-transparent border-none text-xs font-bold p-0 outline-none select-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                    <button onclick="adjustAdminStock('${item.name.replace(/'/g, "\\'")}', 1)" class="w-5 h-5 rounded-lg bg-white dark:bg-bk-charcoal flex items-center justify-center font-bold text-xs active:scale-90 transition-all outline-none shadow-sm hover:bg-gray-100 dark:hover:bg-white/10">+</button>
+                </div>
             </div>
             <div class="flex flex-col gap-2">
-                <button onclick="openMenuModal('${item.name}')" class="p-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 rounded-xl transition-all outline-none">
+                <button onclick="openMenuModal('${item.name.replace(/'/g, "\\'")}')" class="p-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 rounded-xl transition-all outline-none">
                     <i data-lucide="edit-2" class="w-4 h-4"></i>
                 </button>
-                <button onclick="deleteMenuItem('${item.name}')" class="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-xl transition-all outline-none">
+                <button onclick="deleteMenuItem('${item.name.replace(/'/g, "\\'")}')" class="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-xl transition-all outline-none">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
             </div>
@@ -269,6 +278,38 @@ function loadAdminMenu() {
     `).join('');
     
     lucide.createIcons();
+}
+
+function adjustAdminStock(name, delta) {
+    const idx = MENU_DATA.findIndex(i => i.name === name);
+    if (idx !== -1) {
+        const currentStock = MENU_DATA[idx].stock !== undefined ? MENU_DATA[idx].stock : 15;
+        const newStock = Math.max(0, currentStock + delta);
+        MENU_DATA[idx].stock = newStock;
+        saveMenuStock(idx, newStock);
+    }
+}
+
+function setAdminStock(name, val) {
+    const idx = MENU_DATA.findIndex(i => i.name === name);
+    if (idx !== -1) {
+        const newStock = Math.max(0, parseInt(val) || 0);
+        MENU_DATA[idx].stock = newStock;
+        saveMenuStock(idx, newStock);
+    }
+}
+
+function saveMenuStock(idx, stock) {
+    if (typeof db !== 'undefined') {
+        db.ref('menu/' + idx + '/stock').set(stock)
+            .then(() => {
+                console.log("Stock updated in Firebase!");
+                loadAdminMenu();
+            });
+    } else {
+        localStorage.setItem('bk_menu', JSON.stringify(MENU_DATA));
+        loadAdminMenu();
+    }
 }
 
 function openMenuModal(name = null) {
@@ -288,6 +329,7 @@ function openMenuModal(name = null) {
             document.getElementById('editOriginalName').value = item.name;
             document.getElementById('itemName').value = item.name;
             document.getElementById('itemPrice').value = item.price;
+            document.getElementById('itemStock').value = item.stock !== undefined ? item.stock : 15;
             document.getElementById('itemCategory').value = item.category;
             document.getElementById('itemSpicy').checked = item.spicy || false;
             document.getElementById('itemImg').value = item.img;
@@ -357,14 +399,31 @@ function selectAdminChat(customerId) {
 function renderAdminChatHistory(data) {
     const history = document.getElementById('adminChatHistory');
     history.innerHTML = '<div class="text-center text-[10px] font-bold opacity-40 my-2">Chat History</div>';
-    
     if (data) {
         const messages = Object.values(data).sort((a,b) => a.timestamp - b.timestamp);
         messages.forEach(msg => {
             const isAdmin = msg.sender === 'admin';
+            let contentHtml = msg.text;
+            
+            if (msg.type === 'menu_push') {
+                contentHtml = `
+                    <div class="flex flex-col gap-2 bg-white/10 p-2.5 rounded-xl border border-white/10 max-w-xs mt-1 text-left">
+                        <img src="${msg.itemImg}" class="w-full h-24 object-cover rounded-lg">
+                        <div>
+                            <p class="font-bold text-xs text-white">${msg.itemName}</p>
+                            <p class="text-[10px] font-black text-bk-yellow">Rp ${msg.itemPrice.toLocaleString()}</p>
+                            ${msg.status === 'ordered' 
+                                ? `<span class="mt-2 inline-flex items-center gap-1 bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full text-[9px] font-bold border border-green-500/30">Ordered ✓ (${msg.orderQty}x) via ${msg.orderPayment || 'Cash'}</span>` 
+                                : `<span class="mt-2 inline-flex items-center gap-1 bg-white/10 text-white/70 px-2 py-0.5 rounded-full text-[9px] font-bold">Pushed Menu Card</span>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }
+
             history.innerHTML += `
                 <div class="p-3 rounded-2xl max-w-[85%] text-sm shadow-sm animate-fade ${isAdmin ? 'bg-bk-red text-white rounded-tr-none self-end' : 'bg-gray-200 dark:bg-white/10 rounded-tl-none self-start'}">
-                    ${msg.text}
+                    ${contentHtml}
                     <div class="text-[8px] opacity-50 mt-1 ${isAdmin ? 'text-right' : 'text-left'}">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                 </div>
             `;
@@ -386,4 +445,60 @@ function sendAdminChat() {
     
     db.ref('chats/' + activeChatCustomer).push(msgData);
     input.value = '';
+}
+
+/**
+ * ADMIN MENU PUSH TO CHAT LOGIC
+ */
+function toggleAdminMenuPushDropdown() {
+    const dropdown = document.getElementById('adminMenuPushDropdown');
+    if (!dropdown) return;
+    dropdown.classList.toggle('hidden');
+    if (!dropdown.classList.contains('hidden')) {
+        document.getElementById('adminMenuPushSearch').value = '';
+        renderAdminMenuPushList(MENU_DATA);
+        document.getElementById('adminMenuPushSearch').focus();
+    }
+}
+
+function renderAdminMenuPushList(items) {
+    const list = document.getElementById('adminMenuPushList');
+    if (!list) return;
+    list.innerHTML = items.map(item => `
+        <div onclick="pushMenuItemToChat('${item.name.replace(/'/g, "\\'")}')" class="p-2 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-bk-red dark:hover:bg-bk-red hover:text-white transition-all cursor-pointer flex items-center gap-3">
+            <img src="${item.img}" class="w-10 h-10 object-cover rounded-lg" alt="${item.name}">
+            <div class="flex-1 min-w-0 text-left">
+                <h5 class="font-bold text-xs truncate">${item.name}</h5>
+                <p class="text-[10px] opacity-75">Rp ${item.price.toLocaleString()}</p>
+            </div>
+            <i data-lucide="send" class="w-3.5 h-3.5 opacity-50 hover:opacity-100"></i>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+function filterAdminMenuPushList() {
+    const query = document.getElementById('adminMenuPushSearch').value.toLowerCase();
+    const filtered = MENU_DATA.filter(item => item.name.toLowerCase().includes(query));
+    renderAdminMenuPushList(filtered);
+}
+
+function pushMenuItemToChat(itemName) {
+    const item = MENU_DATA.find(i => i.name === itemName);
+    if (!item || !activeChatCustomer || typeof db === 'undefined') return;
+    
+    const msgData = {
+        sender: 'admin',
+        text: `Rekomendasi Menu: ${item.name}`,
+        type: 'menu_push',
+        itemName: item.name,
+        itemPrice: item.price,
+        itemImg: item.img,
+        itemDesc: item.desc || '',
+        timestamp: Date.now()
+    };
+    
+    db.ref('chats/' + activeChatCustomer).push(msgData).then(() => {
+        toggleAdminMenuPushDropdown();
+    });
 }
