@@ -58,6 +58,7 @@
             <div class="ml-4 flex gap-2 bg-white/50 dark:bg-black/20 p-1 rounded-full">
                 <button onclick="switchAdminTab('dashboard')" id="tabDashboard" class="px-4 py-1.5 rounded-full text-sm font-bold bg-white dark:bg-bk-charcoal shadow-sm transition-all outline-none">Dashboard</button>
                 <button onclick="switchAdminTab('menu')" id="tabMenu" class="px-4 py-1.5 rounded-full text-sm font-bold opacity-50 hover:opacity-100 transition-all outline-none">Menu Management</button>
+                <button onclick="switchAdminTab('chat')" id="tabChat" class="px-4 py-1.5 rounded-full text-sm font-bold opacity-50 hover:opacity-100 transition-all outline-none">Live Chat</button>
             </div>
         </div>
         <div class="flex items-center gap-3">
@@ -133,6 +134,80 @@
                 <!-- Menu items injected here -->
             </div>
         </div>
+
+        <!-- Live Chat Tab (Instant Messaging Integration) -->
+        <div id="chatTab" class="hidden animate-fade h-[75vh]">
+            <div class="flex h-full gap-6">
+                <!-- Customer List -->
+                <div class="w-1/3 glass rounded-[30px] p-4 flex flex-col overflow-hidden">
+                    <h3 class="font-extrabold uppercase mb-4 px-2 tracking-widest text-sm">Customers</h3>
+                    <div id="adminChatList" class="flex-1 overflow-y-auto flex flex-col gap-2 no-scrollbar">
+                        <div class="opacity-50 text-center text-xs font-bold mt-10">No active chats</div>
+                    </div>
+                </div>
+                
+                <!-- Active Chat -->
+                <div class="flex-1 glass rounded-[30px] flex flex-col overflow-hidden relative">
+                    <div id="adminChatHeader" class="bg-blue-600 text-white p-4 hidden flex items-center justify-between shadow-md">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="user" class="w-5 h-5"></i>
+                            <div>
+                                <h3 class="font-bold text-sm" id="adminChatTitle">Customer</h3>
+                                <p class="text-[10px] opacity-70">Unique ID (DoB Based)</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="adminChatHistory" class="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
+                        <div class="h-full flex items-center justify-center opacity-30 font-bold text-sm">Select a customer to view chat</div>
+                    </div>
+                    
+                    <div id="adminChatInputContainer" class="p-4 border-t border-black/10 dark:border-white/10 flex gap-2 hidden bg-black/5 dark:bg-white/5">
+                        <input type="text" id="adminChatInput" placeholder="Reply to customer..." class="flex-1 bg-white dark:bg-bk-charcoal rounded-full px-4 py-3 outline-none text-sm font-bold shadow-sm" onkeypress="if(event.key==='Enter') sendAdminChat()">
+                        <button onclick="sendAdminChat()" class="bg-blue-600 text-white p-3 rounded-full hover:bg-blue-700 shadow-md outline-none">
+                            <i data-lucide="send" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Chat Tab (Instant Messaging Integration) -->
+        <div id="chatTab" class="hidden animate-fade h-[75vh]">
+            <div class="flex h-full gap-6">
+                <!-- Customer List -->
+                <div class="w-1/3 glass rounded-[30px] p-4 flex flex-col overflow-hidden">
+                    <h3 class="font-extrabold uppercase mb-4 px-2 tracking-widest text-sm">Customers</h3>
+                    <div id="adminChatList" class="flex-1 overflow-y-auto flex flex-col gap-2 no-scrollbar">
+                        <div class="opacity-50 text-center text-xs font-bold mt-10">No active chats</div>
+                    </div>
+                </div>
+                
+                <!-- Active Chat -->
+                <div class="flex-1 glass rounded-[30px] flex flex-col overflow-hidden relative">
+                    <div id="adminChatHeader" class="bg-bk-red text-white p-4 hidden flex items-center justify-between shadow-md">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="user" class="w-5 h-5"></i>
+                            <div>
+                                <h3 class="font-bold text-sm" id="adminChatTitle">Customer</h3>
+                                <p class="text-[10px] opacity-70">Unique ID (DoB Based)</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="adminChatHistory" class="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
+                        <div class="h-full flex items-center justify-center opacity-30 font-bold text-sm">Select a customer to view chat</div>
+                    </div>
+                    
+                    <div id="adminChatInputContainer" class="p-4 border-t border-black/10 dark:border-white/10 flex gap-2 hidden bg-black/5 dark:bg-white/5">
+                        <input type="text" id="adminChatInput" placeholder="Reply to customer..." class="flex-1 bg-white dark:bg-bk-charcoal rounded-full px-4 py-3 outline-none text-sm font-bold shadow-sm" onkeypress="if(event.key==='Enter') sendAdminChat()">
+                        <button onclick="sendAdminChat()" class="bg-bk-red text-white p-3 rounded-full hover:bg-red-700 shadow-md outline-none">
+                            <i data-lucide="send" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Menu Item Modal -->
@@ -191,8 +266,11 @@
         </div>
     </div>
 
-    <script src="data.js"></script>
-    <script src="admin.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="firebase-config.js?v=3"></script>
+    <script src="data.js?v=3"></script>
+    <script src="admin.js?v=5"></script>
     <script>lucide.createIcons();</script>
 </body>
 </html>

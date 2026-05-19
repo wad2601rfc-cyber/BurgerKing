@@ -72,6 +72,10 @@
                 title="Admin Dashboard">
                 <i data-lucide="shield-check" class="w-6 h-6"></i>
             </a>
+            <button onclick="openSellerInfo()" class="p-2 rounded-full hover:bg-bk-red hover:text-white transition-all outline-none"
+                title="Seller Info / Short Video">
+                <i data-lucide="video" class="w-6 h-6"></i>
+            </button>
             <button onclick="toggleDarkMode()"
                 class="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-all outline-none"
                 title="Toggle Dark Mode">
@@ -148,15 +152,34 @@
         <!-- CHAT INTERFACE -->
         <div id="chatWindow"
             class="absolute bottom-20 right-0 w-80 md:w-96 h-[500px] glass rounded-3xl shadow-2xl hidden flex flex-col overflow-hidden animate-slide">
-            <div class="bg-bk-red p-4 text-white flex items-center gap-3">
-                <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-bk-red shadow-inner">
-                    <i data-lucide="bot" class="w-6 h-6"></i>
+            <div class="bg-bk-red p-4 text-white flex items-center justify-between shadow-md">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-bk-red shadow-inner">
+                        <i data-lucide="bot" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold">KingHelper</h3>
+                        <p class="text-[10px] text-white/70 uppercase tracking-widest">Smart Assistant Agent</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="font-bold">KingHelper</h3>
-                    <p class="text-[10px] text-white/70 uppercase tracking-widest">Smart Assistant Agent</p>
+                <button onclick="toggleAiSettings()" class="p-1 hover:bg-white/10 rounded-lg outline-none" title="AI Settings">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- AI Settings Panel -->
+            <div id="aiSettingsPanel" class="hidden p-4 bg-white dark:bg-bk-charcoal border-b border-black/10 dark:border-white/10 animate-fade text-xs flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <span class="font-extrabold uppercase tracking-wider text-[10px] opacity-70">Llama-3 AI Settings</span>
+                    <button onclick="toggleAiSettings()" class="text-bk-red font-bold hover:underline">Close</button>
+                </div>
+                <p class="opacity-60 text-[9px]">Enter a Groq API Key to enable real-time Llama-3 parsing & AMA. Your key is stored locally in your browser.</p>
+                <div class="flex gap-2">
+                    <input type="password" id="groqApiKeyInput" placeholder="gsk_..." class="flex-1 bg-black/5 dark:bg-white/5 p-2 rounded-xl outline-none text-xs font-bold focus:ring-1 focus:ring-bk-red">
+                    <button onclick="saveGroqApiKey()" class="bg-bk-red text-white px-4 py-2 rounded-xl font-bold hover:bg-bk-flame transition-all">Save</button>
                 </div>
             </div>
+
             <div id="chatHistory" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3 no-scrollbar h-full">
                 <!-- Messages -->
             </div>
@@ -337,6 +360,64 @@
                             <span class="text-[10px] font-bold">Card</span>
                         </button>
                     </div>
+
+                    <!-- E-Wallet Sub-options -->
+                    <div id="ewallet-sub" class="hidden mt-3">
+                        <p class="text-[9px] font-bold opacity-50 mb-2 uppercase tracking-widest">Pilih E-Wallet</p>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button onclick="selectSubPayment('GoPay')" id="sub-GoPay"
+                                class="sub-payment-card p-2 rounded-xl bg-white/70 dark:bg-white/5 flex flex-col items-center gap-1 outline-none border-2 border-transparent hover:border-green-500 transition-all">
+                                <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-[8px] font-black">Go</div>
+                                <span class="text-[9px] font-bold">GoPay</span>
+                            </button>
+                            <button onclick="selectSubPayment('OVO')" id="sub-OVO"
+                                class="sub-payment-card p-2 rounded-xl bg-white/70 dark:bg-white/5 flex flex-col items-center gap-1 outline-none border-2 border-transparent hover:border-purple-500 transition-all">
+                                <div class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white text-[8px] font-black">OVO</div>
+                                <span class="text-[9px] font-bold">OVO</span>
+                            </button>
+                            <button onclick="selectSubPayment('DANA')" id="sub-DANA"
+                                class="sub-payment-card p-2 rounded-xl bg-white/70 dark:bg-white/5 flex flex-col items-center gap-1 outline-none border-2 border-transparent hover:border-blue-400 transition-all">
+                                <div class="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center text-white text-[8px] font-black">DANA</div>
+                                <span class="text-[9px] font-bold">DANA</span>
+                            </button>
+                            <button onclick="selectSubPayment('ShopeePay')" id="sub-ShopeePay"
+                                class="sub-payment-card p-2 rounded-xl bg-white/70 dark:bg-white/5 flex flex-col items-center gap-1 outline-none border-2 border-transparent hover:border-orange-500 transition-all">
+                                <div class="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white text-[8px] font-black">SP</div>
+                                <span class="text-[9px] font-bold">ShopeePay</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Card Sub-options -->
+                    <div id="card-sub" class="hidden mt-3">
+                        <p class="text-[9px] font-bold opacity-50 mb-2 uppercase tracking-widest">Pilih Jenis Kartu</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="selectSubPayment('Visa')" id="sub-Visa"
+                                class="sub-payment-card p-2 rounded-xl bg-white/70 dark:bg-white/5 flex flex-col items-center gap-1 outline-none border-2 border-transparent hover:border-blue-600 transition-all">
+                                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-[8px] font-black italic">VISA</div>
+                                <span class="text-[9px] font-bold">Visa</span>
+                            </button>
+                            <button onclick="selectSubPayment('Mastercard')" id="sub-Mastercard"
+                                class="sub-payment-card p-2 rounded-xl bg-white/70 dark:bg-white/5 flex flex-col items-center gap-1 outline-none border-2 border-transparent hover:border-red-500 transition-all">
+                                <div class="w-8 h-8 bg-gradient-to-r from-red-500 to-orange-400 rounded-full flex items-center justify-center text-white text-[7px] font-black">MC</div>
+                                <span class="text-[9px] font-bold">Mastercard</span>
+                            </button>
+                            <button onclick="selectSubPayment('BCA Card')" id="sub-BCACard"
+                                class="sub-payment-card p-2 rounded-xl bg-white/70 dark:bg-white/5 flex flex-col items-center gap-1 outline-none border-2 border-transparent hover:border-blue-700 transition-all">
+                                <div class="w-8 h-8 bg-blue-700 rounded-lg flex items-center justify-center text-white text-[8px] font-black">BCA</div>
+                                <span class="text-[9px] font-bold">BCA Card</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Selected Payment Confirmation Badge -->
+                    <div id="selectedPaymentBadge" class="hidden mt-3 flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/30 rounded-xl">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-green-500 shrink-0"></i>
+                        <span id="selectedPaymentText" class="text-xs font-bold text-green-600 dark:text-green-400"></span>
+                    </div>
+
+                    <!-- Dynamic Payment Details Form (E-Wallet number / Card details) -->
+                    <div id="paymentDetailsContainer" class="hidden mt-3"></div>
                 </div>
 
                 <!-- Promo Section -->
@@ -523,15 +604,101 @@
         </div>
     </div>
 
+    <!-- SELLER CONTACT / SHORT VIDEO MODAL -->
+    <div id="sellerModal" class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-md" onclick="closeModal('sellerModal')"></div>
+        <div class="relative glass w-full max-w-sm rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-fade">
+            <div class="bg-bk-red p-6 flex items-center justify-between">
+                <div class="flex items-center gap-2 text-white">
+                    <i data-lucide="video" class="w-5 h-5"></i>
+                    <h3 class="font-extrabold text-lg uppercase tracking-tight">Seller Info</h3>
+                </div>
+                <button onclick="closeModal('sellerModal')" class="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all outline-none">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4 text-center items-center">
+                <!-- Short Video Placeholder -->
+                <div class="w-full h-48 bg-black rounded-2xl overflow-hidden relative shadow-inner">
+                    <iframe class="w-full h-full object-cover" src="https://www.youtube.com/embed/n3z6NntpMvw?autoplay=1&mute=1&loop=1&playlist=n3z6NntpMvw" title="Burger King Video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                    <div class="absolute top-2 right-2 bg-red-600 text-white text-[10px] px-2 py-1 rounded-full font-bold animate-pulse">LIVE</div>
+                </div>
+                
+                <div>
+                    <h4 class="font-extrabold text-xl text-bk-dark dark:text-white">Chef Gordon (Owner)</h4>
+                    <p class="text-xs opacity-60">Master Griller & Store Manager</p>
+                </div>
+                
+                <!-- Contact ID Info -->
+                <div class="w-full bg-white/50 dark:bg-white/5 p-4 rounded-2xl flex flex-col gap-3 text-sm text-left shadow-sm">
+                    <div class="flex items-center gap-3"><i data-lucide="hash" class="w-4 h-4 text-bk-red"></i> <b>Seller ID:</b> <span class="opacity-80">BK-8823</span></div>
+                    <div class="flex items-center gap-3"><i data-lucide="phone" class="w-4 h-4 text-bk-red"></i> <b>WhatsApp:</b> <span class="opacity-80">+62 812-3456-7890</span></div>
+                    <div class="flex items-center gap-3"><i data-lucide="mail" class="w-4 h-4 text-bk-red"></i> <b>Email:</b> <span class="opacity-80">owner@burgerking.local</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LIVE CHAT WIDGET (Customer to Admin) -->
+    <div class="fixed bottom-6 left-6 z-[60]">
+        <button onclick="toggleLiveChat()" class="w-16 h-16 bg-bk-red hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl transition-all active:scale-90 group relative outline-none">
+            <i data-lucide="headphones" class="w-8 h-8 group-hover:hidden"></i>
+            <i data-lucide="x" class="w-8 h-8 hidden group-hover:block"></i>
+            <span class="absolute -top-1 -right-1 flex h-4 w-4">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-4 w-4 bg-bk-red border-2 border-white"></span>
+            </span>
+        </button>
+
+        <div id="liveChatWindow" class="absolute bottom-20 left-0 w-80 md:w-96 h-[500px] glass rounded-3xl shadow-2xl hidden flex-col overflow-hidden animate-slide">
+            <div class="bg-bk-red p-4 text-white flex items-center gap-3">
+                <i data-lucide="headphones" class="w-6 h-6"></i>
+                <div>
+                    <h3 class="font-bold">Live Support</h3>
+                    <p class="text-[10px] text-white/70 uppercase tracking-widest">Chat directly with Admin</p>
+                </div>
+            </div>
+            
+            <!-- DoB Registration Form (Rubric: Unique ID based on DoB) -->
+            <div id="liveChatRegistration" class="p-6 flex flex-col gap-4 bg-white dark:bg-bk-charcoal h-full flex-1">
+                <p class="text-xs font-bold opacity-70 text-center mb-2">Please enter your details to generate your Unique Chat ID</p>
+                <input type="text" id="chatName" placeholder="Your Name" class="w-full bg-black/5 dark:bg-white/5 p-3 rounded-xl outline-none font-bold text-sm">
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Date of Birth</label>
+                    <input type="date" id="chatDoB" class="w-full bg-black/5 dark:bg-white/5 p-3 rounded-xl outline-none text-sm font-bold">
+                </div>
+                <button onclick="startLiveChat()" class="w-full bg-bk-red text-white font-extrabold py-3 rounded-xl mt-4 active:scale-95 transition-all">Start Chatting</button>
+            </div>
+
+            <!-- Chat Interface -->
+            <div id="liveChatInterface" class="hidden flex-col flex-1 bg-white dark:bg-bk-charcoal overflow-hidden">
+                <div id="liveChatHistory" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3 no-scrollbar">
+                    <div class="text-center text-[10px] font-bold opacity-40 my-2">Chat Started</div>
+                </div>
+                <div class="p-3 border-t border-black/10 dark:border-white/10 flex gap-2">
+                    <input type="text" id="liveChatInput" placeholder="Type message..." class="flex-1 bg-black/5 dark:bg-white/5 border-none rounded-full px-4 py-2 outline-none text-sm" onkeypress="if(event.key==='Enter') sendLiveChat()">
+                    <button onclick="sendLiveChat()" class="bg-bk-red text-white p-2.5 rounded-full hover:bg-red-700 transition-all outline-none">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- CUSTOM TOAST NOTIFICATION -->
     <div id="toastContainer"
         class="fixed top-6 left-1/2 -translate-x-1/2 z-[200] pointer-events-none flex flex-col gap-3 w-full max-w-xs md:max-w-sm px-4">
         <!-- Toasts go here -->
     </div>
 
+    <!-- Firebase CDN (v8 compat for simplicity without bundler) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
     <!-- Core Script -->
-    <script src="data.js"></script>
-    <script src="script.js"></script>
+    <script src="firebase-config.js?v=3"></script>
+    <script src="data.js?v=3"></script>
+    <script src="script.js?v=8"></script>
 </body>
 
 </html>

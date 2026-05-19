@@ -28,16 +28,41 @@ const DEFAULT_MENU_DATA = [
     { name: "Fresh Apple Slices", price: 12000, category: "health", spicy: false, img: "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce", desc: "Fresh, crisp, and natural apple slices. A light and healthy snack choice.", nutrition: { cal: 35, pro: 0, fat: 0, carb: 9 }, rating: 4.9, reviews: 120 }
 ];
 
-function getMenuData() {
-    const stored = localStorage.getItem('bk_menu');
-    if (stored) {
-        return JSON.parse(stored);
+let MENU_DATA = [];
+
+function initFirebaseData(onMenuReady) {
+    if (typeof db !== 'undefined') {
+        db.ref('menu').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+                // If it's an object, convert to array and filter out nulls
+                MENU_DATA = Array.isArray(val) ? val : Object.values(val).filter(Boolean);
+            } else {
+                // First time setup, populate Firebase with default data
+                db.ref('menu').set(DEFAULT_MENU_DATA).catch(e => console.error("Write blocked by rules?", e));
+                MENU_DATA = DEFAULT_MENU_DATA;
+            }
+            if (onMenuReady) onMenuReady(MENU_DATA);
+        }, (error) => {
+            console.error("Firebase read error (Rules not public?):", error);
+            // Fallback to local storage if Firebase is blocked
+            const stored = localStorage.getItem('bk_menu');
+            MENU_DATA = stored ? JSON.parse(stored) : DEFAULT_MENU_DATA;
+            if (onMenuReady) onMenuReady(MENU_DATA);
+        });
+    } else {
+        // Fallback to localStorage
+        const stored = localStorage.getItem('bk_menu');
+        MENU_DATA = stored ? JSON.parse(stored) : DEFAULT_MENU_DATA;
+        if (!stored) localStorage.setItem('bk_menu', JSON.stringify(DEFAULT_MENU_DATA));
+        if (onMenuReady) onMenuReady(MENU_DATA);
     }
-    // If not found, set default and return
-    localStorage.setItem('bk_menu', JSON.stringify(DEFAULT_MENU_DATA));
-    return DEFAULT_MENU_DATA;
 }
 
 function saveMenuData(data) {
-    localStorage.setItem('bk_menu', JSON.stringify(data));
+    if (typeof db !== 'undefined') {
+        db.ref('menu').set(data);
+    } else {
+        localStorage.setItem('bk_menu', JSON.stringify(data));
+    }
 }

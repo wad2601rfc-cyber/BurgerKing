@@ -1,8 +1,10 @@
 const orderContainer = document.getElementById('orderContainer');
 const emptyState = document.getElementById('emptyState');
 
+let adminHistory = [];
+
 function loadAdminData() {
-    const history = JSON.parse(localStorage.getItem('bk_history') || '[]');
+    const history = adminHistory;
     
     if (history.length === 0) {
         emptyState.classList.remove('hidden');
@@ -49,6 +51,16 @@ function loadAdminData() {
                                 <i data-lucide="map-pin" class="w-3 h-3 text-bk-red"></i>
                                 ${order.address || 'No address'}
                             </div>
+                            <div class="flex items-center gap-1">
+                                ${(() => {
+                                    const p = order.payment || 'Cash';
+                                    const isEwallet = ['GoPay','OVO','DANA','ShopeePay'].includes(p);
+                                    const isCard = ['Visa','Mastercard','BCA Card'].includes(p);
+                                    const color = isEwallet ? 'text-blue-500' : isCard ? 'text-orange-500' : 'text-green-500';
+                                    const icon = isEwallet ? 'smartphone' : isCard ? 'credit-card' : 'banknote';
+                                    return `<i data-lucide="${icon}" class="w-3 h-3 ${color}"></i><span class="font-bold ${color}">${p}</span>`;
+                                })()}
+                            </div>
                         </div>
                     </div>
 
@@ -83,7 +95,12 @@ function updateStats(revenue, orders, rating) {
 
 function clearHistory() {
     if (confirm("Are you sure you want to clear ALL order data? This cannot be undone.")) {
-        localStorage.removeItem('bk_history');
+        if (typeof db !== 'undefined') {
+            db.ref('orders').remove();
+        } else {
+            localStorage.removeItem('bk_history');
+        }
+        adminHistory = [];
         loadAdminData();
     }
 }
@@ -91,6 +108,42 @@ function clearHistory() {
 function logoutAdmin() {
     sessionStorage.removeItem('admin_logged_in');
     window.location.reload();
+}
+
+function initAdminFirebase() {
+    // Sync Menu
+    initFirebaseData(() => {
+        if (!document.getElementById('menuTab').classList.contains('hidden')) {
+            loadAdminMenu();
+        }
+    });
+
+    // Sync Orders
+    if (typeof db !== 'undefined') {
+        db.ref('orders').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+                adminHistory = Object.values(val).sort((a, b) => a.timestamp - b.timestamp);
+            } else {
+                adminHistory = [];
+            }
+            if (!document.getElementById('dashboardTab').classList.contains('hidden')) {
+                loadAdminData();
+            }
+        });
+        
+        // Sync Chats
+        db.ref('chats').on('value', (snapshot) => {
+            const val = snapshot.val();
+            renderAdminChatList(val);
+            if (activeChatCustomer && val && val[activeChatCustomer]) {
+                renderAdminChatHistory(val[activeChatCustomer]);
+            }
+        });
+    } else {
+        adminHistory = JSON.parse(localStorage.getItem('bk_history') || '[]');
+        loadAdminData();
+    }
 }
 
 // Initial Load and Login Logic
@@ -102,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check if already logged in
     if (sessionStorage.getItem('admin_logged_in') === 'true') {
         loginOverlay.style.display = 'none';
-        loadAdminData();
+        initAdminFirebase();
     } else {
         // Not logged in, prevent scrolling in background if needed
         document.body.style.overflow = 'hidden';
@@ -114,8 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const email = document.getElementById('adminEmail').value;
             
-            // Allow login with specific email or any valid email for demo purposes
-            // Let's require admin@burgerking.com for extra realism
             if (email.toLowerCase() === 'admin@burgerking.com') {
                 sessionStorage.setItem('admin_logged_in', 'true');
                 loginOverlay.style.opacity = '0';
@@ -123,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 setTimeout(() => {
                     loginOverlay.style.display = 'none';
-                    loadAdminData();
+                    initAdminFirebase();
                 }, 300);
             } else {
                 loginError.classList.remove('hidden');
@@ -149,13 +200,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 reviews: 0
             };
 
-            let menuData = getMenuData();
+            let menuData = [...MENU_DATA];
             
             if (originalName) {
                 // Edit existing
                 const idx = menuData.findIndex(i => i.name === originalName);
                 if (idx !== -1) {
-                    // Preserve rating/reviews/nutrition if editing
                     item.nutrition = menuData[idx].nutrition;
                     item.rating = menuData[idx].rating;
                     item.reviews = menuData[idx].reviews;
@@ -168,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             saveMenuData(menuData);
             closeMenuModal();
-            loadAdminMenu();
         });
     }
 });
@@ -177,31 +226,24 @@ document.addEventListener('DOMContentLoaded', () => {
  * TAB SWITCHING
  */
 function switchAdminTab(tab) {
-    const dashTab = document.getElementById('dashboardTab');
-    const menuTab = document.getElementById('menuTab');
-    const btnDash = document.getElementById('tabDashboard');
-    const btnMenu = document.getElementById('tabMenu');
+    const tabs = ['dashboard', 'menu', 'chat'];
+    tabs.forEach(t => {
+        document.getElementById(t + 'Tab').classList.add('hidden');
+        document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).className = "px-4 py-1.5 rounded-full text-sm font-bold opacity-50 hover:opacity-100 transition-all outline-none";
+    });
 
-    if (tab === 'dashboard') {
-        dashTab.classList.remove('hidden');
-        menuTab.classList.add('hidden');
-        btnDash.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-white dark:bg-bk-charcoal shadow-sm transition-all outline-none";
-        btnMenu.className = "px-4 py-1.5 rounded-full text-sm font-bold opacity-50 hover:opacity-100 transition-all outline-none";
-        loadAdminData();
-    } else {
-        dashTab.classList.add('hidden');
-        menuTab.classList.remove('hidden');
-        btnDash.className = "px-4 py-1.5 rounded-full text-sm font-bold opacity-50 hover:opacity-100 transition-all outline-none";
-        btnMenu.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-white dark:bg-bk-charcoal shadow-sm transition-all outline-none";
-        loadAdminMenu();
-    }
+    document.getElementById(tab + 'Tab').classList.remove('hidden');
+    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).className = "px-4 py-1.5 rounded-full text-sm font-bold bg-white dark:bg-bk-charcoal shadow-sm transition-all outline-none";
+
+    if (tab === 'dashboard') loadAdminData();
+    if (tab === 'menu') loadAdminMenu();
 }
 
 /**
  * MENU MANAGEMENT
  */
 function loadAdminMenu() {
-    const menuData = getMenuData();
+    const menuData = MENU_DATA;
     const grid = document.getElementById('adminMenuGrid');
     
     grid.innerHTML = menuData.map(item => `
@@ -239,7 +281,7 @@ function openMenuModal(name = null) {
     title.innerText = 'Add Menu Item';
     
     if (name) {
-        const menuData = getMenuData();
+        const menuData = MENU_DATA;
         const item = menuData.find(i => i.name === name);
         if (item) {
             title.innerText = 'Edit Menu Item';
@@ -262,10 +304,86 @@ function closeMenuModal() {
 
 function deleteMenuItem(name) {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
-        let menuData = getMenuData();
+        let menuData = [...MENU_DATA];
         menuData = menuData.filter(i => i.name !== name);
         saveMenuData(menuData);
-        loadAdminMenu();
     }
 }
 
+/**
+ * LIVE CHAT MANAGEMENT
+ */
+let activeChatCustomer = null;
+
+function renderAdminChatList(chats) {
+    const list = document.getElementById('adminChatList');
+    list.innerHTML = '';
+    
+    if (!chats) {
+        list.innerHTML = '<div class="opacity-50 text-center text-xs font-bold mt-10">No active chats</div>';
+        return;
+    }
+    
+    Object.keys(chats).forEach(customerId => {
+        const msgs = Object.values(chats[customerId]).sort((a,b) => a.timestamp - b.timestamp);
+        const lastMsg = msgs[msgs.length - 1];
+        const isActive = activeChatCustomer === customerId;
+        
+        list.innerHTML += `
+            <div onclick="selectAdminChat('${customerId}')" class="p-3 rounded-2xl cursor-pointer transition-all border ${isActive ? 'bg-bk-red text-white border-bk-red shadow-md' : 'bg-white/50 dark:bg-white/5 border-transparent hover:bg-black/5'}">
+                <h4 class="font-bold text-sm truncate">${customerId}</h4>
+                <p class="text-[10px] opacity-70 truncate mt-1">${lastMsg.text}</p>
+            </div>
+        `;
+    });
+}
+
+function selectAdminChat(customerId) {
+    activeChatCustomer = customerId;
+    document.getElementById('adminChatHeader').classList.remove('hidden');
+    document.getElementById('adminChatInputContainer').classList.remove('hidden');
+    document.getElementById('adminChatTitle').innerText = customerId;
+    
+    // re-trigger render to update active state in list
+    if (typeof db !== 'undefined') {
+        db.ref('chats').once('value').then(snap => renderAdminChatList(snap.val()));
+        db.ref('chats/' + customerId).once('value').then(snap => {
+            renderAdminChatHistory(snap.val());
+        });
+    }
+    lucide.createIcons();
+}
+
+function renderAdminChatHistory(data) {
+    const history = document.getElementById('adminChatHistory');
+    history.innerHTML = '<div class="text-center text-[10px] font-bold opacity-40 my-2">Chat History</div>';
+    
+    if (data) {
+        const messages = Object.values(data).sort((a,b) => a.timestamp - b.timestamp);
+        messages.forEach(msg => {
+            const isAdmin = msg.sender === 'admin';
+            history.innerHTML += `
+                <div class="p-3 rounded-2xl max-w-[85%] text-sm shadow-sm animate-fade ${isAdmin ? 'bg-bk-red text-white rounded-tr-none self-end' : 'bg-gray-200 dark:bg-white/10 rounded-tl-none self-start'}">
+                    ${msg.text}
+                    <div class="text-[8px] opacity-50 mt-1 ${isAdmin ? 'text-right' : 'text-left'}">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                </div>
+            `;
+        });
+        history.scrollTop = history.scrollHeight;
+    }
+}
+
+function sendAdminChat() {
+    const input = document.getElementById('adminChatInput');
+    const text = input.value.trim();
+    if (!text || !activeChatCustomer || typeof db === 'undefined') return;
+    
+    const msgData = {
+        sender: 'admin',
+        text: text,
+        timestamp: Date.now()
+    };
+    
+    db.ref('chats/' + activeChatCustomer).push(msgData);
+    input.value = '';
+}

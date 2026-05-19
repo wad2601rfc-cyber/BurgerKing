@@ -6,6 +6,9 @@
 // Initialize Lucide Icons
 lucide.createIcons();
 
+// Firebase Config is now loaded from firebase-config.js
+// MENU_DATA is now loaded from data.js
+
 // SMART LOGIC CONFIG
 const BOT_CONFIG = {
     name: "KingHelper",
@@ -18,9 +21,6 @@ const BOT_CONFIG = {
     }
 };
 
-// MENU DATABASE (Loaded from shared state)
-let MENU_DATA = getMenuData();
-
 let cart = [];
 let selectedItem = null;
 let currentQty = 1;
@@ -28,6 +28,7 @@ let currentDiscount = 0;
 let activeCategory = 'all';
 let selectedPayment = 'Cash'; // Default
 let currentOrderRating = 0;
+let currentOrderTimestamp = null;
 
 /**
  * THEME LOGIC
@@ -308,16 +309,87 @@ function applyPromo() {
     calculateTotal();
 }
 
+
 function openCart() {
     document.getElementById('cartSidebar').classList.remove('hidden');
     // Auto-detect location if empty
     if (!document.getElementById('deliveryAddress').value) {
         detectLocation();
     }
+    // Initialize payment UI state based on current selectedPayment
+    initPaymentUI();
 }
 
 function closeSidebar() {
     document.getElementById('cartSidebar').classList.add('hidden');
+    // Reset payment to Cash when cart closes
+    selectedPayment = 'Cash';
+    initPaymentUI();
+}
+
+/**
+ * Initialize payment UI to match the current selectedPayment value.
+ * Shows/hides sub-panels and sets the active button and badge.
+ */
+function initPaymentUI() {
+    const ewalletProviders = ['GoPay', 'OVO', 'DANA', 'ShopeePay'];
+    const cardTypes = ['Visa', 'Mastercard', 'BCA Card'];
+    const isEwallet = ewalletProviders.includes(selectedPayment);
+    const isCard = cardTypes.includes(selectedPayment);
+
+    // Determine the top-level category
+    const category = isEwallet ? 'E-Wallet' : isCard ? 'Card' : 'Cash';
+
+    // Update top-level button active state
+    document.querySelectorAll('.payment-card').forEach(card => {
+        card.classList.remove('active');
+        const span = card.querySelector('span');
+        if (span && span.innerText === category) card.classList.add('active');
+    });
+
+    // Hide sub-panels first
+    const ewalletSub = document.getElementById('ewallet-sub');
+    const cardSub = document.getElementById('card-sub');
+    if (ewalletSub) ewalletSub.classList.add('hidden');
+    if (cardSub) cardSub.classList.add('hidden');
+
+    // Show the correct sub-panel
+    if (category === 'E-Wallet' && ewalletSub) ewalletSub.classList.remove('hidden');
+    if (category === 'Card' && cardSub) cardSub.classList.remove('hidden');
+
+    // Highlight active sub-card
+    document.querySelectorAll('.sub-payment-card').forEach(c => {
+        c.classList.remove('border-bk-red');
+        const span = c.querySelector('span');
+        if (span && span.innerText === selectedPayment) c.classList.add('border-bk-red');
+    });
+
+    // Show confirmation badge and details form
+    const badge = document.getElementById('selectedPaymentBadge');
+    const badgeText = document.getElementById('selectedPaymentText');
+    const detailsContainer = document.getElementById('paymentDetailsContainer');
+    
+    if (badge && badgeText) {
+        const label = selectedPayment === 'Cash' ? 'Membayar dengan Cash 💵'
+            : (isEwallet || isCard) ? `Membayar dengan ${selectedPayment} ✓`
+            : null;
+        if (label) {
+            badgeText.innerText = label;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+        lucide.createIcons();
+    }
+
+    if (detailsContainer) {
+        if (selectedPayment === 'Cash' || (!isEwallet && !isCard)) {
+            detailsContainer.classList.add('hidden');
+            detailsContainer.innerHTML = '';
+        } else {
+            renderPaymentDetailsForm(selectedPayment, isEwallet, isCard);
+        }
+    }
 }
 
 function handleCheckout() {
@@ -327,6 +399,29 @@ function handleCheckout() {
     
     if (!address) return showToast("Please enter a delivery address!");
     if (!phone) return showToast("Please enter your WhatsApp / Phone number for coordination!");
+    if (selectedPayment === 'E-Wallet') return showToast("Silakan pilih jenis E-Wallet terlebih dahulu!");
+    if (selectedPayment === 'Card') return showToast("Silakan pilih jenis kartu terlebih dahulu!");
+
+    // Validate Sub-Payment Details
+    const ewalletProviders = ['GoPay', 'OVO', 'DANA', 'ShopeePay'];
+    const cardTypes = ['Visa', 'Mastercard', 'BCA Card'];
+    
+    if (ewalletProviders.includes(selectedPayment)) {
+        const ewPhone = document.getElementById('ewalletPhone');
+        if (!ewPhone || !ewPhone.value) return showToast(`Silakan masukkan nomor ${selectedPayment} Anda!`);
+    } else if (cardTypes.includes(selectedPayment)) {
+        const cardNum = document.getElementById('cardNumber');
+        const cardName = document.getElementById('cardName');
+        const cardExp = document.getElementById('cardExp');
+        const cardCvv = document.getElementById('cardCvv');
+        if (!cardNum || !cardNum.value) return showToast("Silakan masukkan nomor kartu!");
+        if (!cardName || !cardName.value) return showToast("Silakan masukkan nama pada kartu!");
+        if (!cardExp || !cardExp.value) return showToast("Silakan masukkan masa berlaku kartu (MM/YY)!");
+        if (!cardCvv || !cardCvv.value) return showToast("Silakan masukkan CVV kartu!");
+    }
+    
+    // Capture final payment method before closing sidebar resets it
+    const finalPayment = selectedPayment;
     
     // Simulation Logic
     closeSidebar();
@@ -343,19 +438,32 @@ function handleCheckout() {
     document.getElementById('trackingModal').classList.remove('hidden');
     lucide.createIcons();
     
-    // Save to localStorage History
-    const history = JSON.parse(localStorage.getItem('bk_history') || '[]');
-    history.push({ 
+    // Create Order Object
+    const orderData = { 
         items: cart.map(i => `${i.qty}x ${i.name}`), 
         time: new Date().toLocaleString(), 
+        timestamp: Date.now(),
         total: document.getElementById('finalTotal').innerText,
-        payment: selectedPayment,
+        payment: finalPayment,
         address: address,
         phone: phone,
         rating: 0,
         feedback: ""
-    });
+    };
+
+    currentOrderTimestamp = orderData.timestamp;
+
+    // Save to localStorage History
+    const history = JSON.parse(localStorage.getItem('bk_history') || '[]');
+    history.push(orderData);
     localStorage.setItem('bk_history', JSON.stringify(history));
+
+    // Save to Firebase (AJAX/Database Simulation)
+    if (db && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+        db.ref('orders/' + orderData.timestamp).set(orderData)
+            .then(() => console.log("Order saved to Firebase!"))
+            .catch(err => console.error("Firebase save error:", err));
+    }
     
     // Clear Cart
     cart = [];
@@ -388,6 +496,18 @@ function submitOrderFeedback() {
         lastOrder.rating = currentOrderRating;
         lastOrder.feedback = feedback;
         localStorage.setItem('bk_history', JSON.stringify(history));
+    }
+
+    // Sync rating and feedback to Firebase Realtime Database
+    if (typeof db !== 'undefined' && currentOrderTimestamp && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+        db.ref('orders/' + currentOrderTimestamp).update({
+            rating: currentOrderRating,
+            feedback: feedback
+        }).then(() => {
+            console.log("Order feedback/rating synced to Firebase successfully!");
+        }).catch(err => {
+            console.error("Failed to sync feedback to Firebase:", err);
+        });
     }
 
     if (currentOrderRating > 0) {
@@ -435,14 +555,122 @@ function detectLocation() {
 }
 
 function selectPayment(method) {
+    // Reset sub selections when switching category
     selectedPayment = method;
-    // Update UI
+    document.querySelectorAll('.sub-payment-card').forEach(c => {
+        c.classList.remove('border-bk-red');
+    });
+
+    // Update main payment card UI
     document.querySelectorAll('.payment-card').forEach(card => {
         card.classList.remove('active');
         if (card.querySelector('span').innerText === method) {
             card.classList.add('active');
         }
     });
+
+    // Hide all sub-panels and badge
+    const ewalletSub = document.getElementById('ewallet-sub');
+    const cardSub = document.getElementById('card-sub');
+    const badge = document.getElementById('selectedPaymentBadge');
+    if (ewalletSub) ewalletSub.classList.add('hidden');
+    if (cardSub) cardSub.classList.add('hidden');
+    if (badge) badge.classList.add('hidden');
+
+    if (method === 'E-Wallet') {
+        if (ewalletSub) ewalletSub.classList.remove('hidden');
+    } else if (method === 'Card') {
+        if (cardSub) cardSub.classList.remove('hidden');
+    } else {
+        // Cash — show confirmation badge immediately
+        const badgeText = document.getElementById('selectedPaymentText');
+        if (badge && badgeText) {
+            badgeText.innerText = 'Membayar dengan Cash 💵';
+            badge.classList.remove('hidden');
+            lucide.createIcons();
+        }
+    }
+    
+    const detailsContainer = document.getElementById('paymentDetailsContainer');
+    if (detailsContainer) {
+        detailsContainer.classList.add('hidden');
+        detailsContainer.innerHTML = '';
+    }
+}
+
+function selectSubPayment(subMethod) {
+    selectedPayment = subMethod;
+
+    // Highlight selected sub card
+    document.querySelectorAll('.sub-payment-card').forEach(c => {
+        c.classList.remove('border-bk-red');
+        const span = c.querySelector('span');
+        if (span && span.innerText === subMethod) {
+            c.classList.add('border-bk-red');
+        }
+    });
+
+    // Show the confirmation badge
+    const badge = document.getElementById('selectedPaymentBadge');
+    const badgeText = document.getElementById('selectedPaymentText');
+    if (badge && badgeText) {
+        badgeText.innerText = `Membayar dengan ${subMethod} ✓`;
+        badge.classList.remove('hidden');
+        lucide.createIcons();
+    }
+    
+    const ewalletProviders = ['GoPay', 'OVO', 'DANA', 'ShopeePay'];
+    const cardTypes = ['Visa', 'Mastercard', 'BCA Card'];
+    renderPaymentDetailsForm(subMethod, ewalletProviders.includes(subMethod), cardTypes.includes(subMethod));
+}
+
+function renderPaymentDetailsForm(method, isEwallet, isCard) {
+    const container = document.getElementById('paymentDetailsContainer');
+    if (!container) return;
+
+    if (isEwallet) {
+        container.innerHTML = `
+            <div class="mt-4 p-4 rounded-xl bg-white/50 dark:bg-white/5 border border-black/10 dark:border-white/10 animate-fade">
+                <p class="text-xs font-bold mb-2">Detail ${method}</p>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold opacity-50">+62</span>
+                    <input type="number" id="ewalletPhone" placeholder="81234567890" class="w-full bg-white dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg py-2 pl-12 pr-3 text-sm outline-none focus:border-bk-red transition-all">
+                </div>
+                <p class="text-[10px] opacity-50 mt-2">Pastikan nomor terdaftar di ${method}.</p>
+            </div>
+        `;
+        container.classList.remove('hidden');
+    } else if (isCard) {
+        container.innerHTML = `
+            <div class="mt-4 p-4 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/10 dark:to-white/5 border border-black/10 dark:border-white/10 animate-fade relative overflow-hidden shadow-inner">
+                <!-- Decorative Card Element -->
+                <div class="absolute -right-4 -top-4 w-24 h-24 bg-white/20 rounded-full blur-xl"></div>
+                
+                <div class="flex justify-between items-center mb-4 relative z-10">
+                    <p class="text-xs font-bold uppercase tracking-widest opacity-80">${method}</p>
+                    <i data-lucide="credit-card" class="w-5 h-5 opacity-50"></i>
+                </div>
+                
+                <div class="space-y-3 relative z-10">
+                    <div>
+                        <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" maxlength="19" class="w-full bg-white/80 dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-lg p-2 text-sm font-mono tracking-widest outline-none focus:border-bk-red transition-all shadow-sm">
+                    </div>
+                    <div>
+                        <input type="text" id="cardName" placeholder="NAMA SESUAI KARTU" class="w-full bg-white/80 dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-lg p-2 text-xs font-bold uppercase outline-none focus:border-bk-red transition-all shadow-sm">
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="cardExp" placeholder="MM/YY" maxlength="5" class="w-1/2 bg-white/80 dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-lg p-2 text-sm text-center font-mono outline-none focus:border-bk-red transition-all shadow-sm">
+                        <input type="password" id="cardCvv" placeholder="CVV" maxlength="3" class="w-1/2 bg-white/80 dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-lg p-2 text-sm text-center font-mono outline-none focus:border-bk-red transition-all shadow-sm">
+                    </div>
+                </div>
+            </div>
+        `;
+        container.classList.remove('hidden');
+        lucide.createIcons();
+    } else {
+        container.innerHTML = '';
+        container.classList.add('hidden');
+    }
 }
 
 /**
@@ -485,12 +713,102 @@ async function sendChat() {
     input.value = '';
     showTyping();
 
-    // Small delay to simulate "thinking"
-    setTimeout(() => {
-        const response = processSmartLogic(text);
+    try {
+        const response = await processSmartLogicAsync(text);
+        const typing = document.getElementById('typingIndicator');
+        if (typing) typing.remove();
         addMessage(response);
         setTimeout(() => lucide.createIcons(), 100);
-    }, 600);
+    } catch (err) {
+        console.error("AI chat error:", err);
+        const typing = document.getElementById('typingIndicator');
+        if (typing) typing.remove();
+        addMessage("Sorry, I encountered an error. Please check your Groq API Key or try again.");
+    }
+}
+
+async function processSmartLogicAsync(query) {
+    const key = localStorage.getItem('groq_api_key');
+    if (!key || key.trim() === "") {
+        // Fallback to local rule-based matching
+        const reply = processSmartLogic(query);
+        return reply + `<br><br><span class="text-[9px] opacity-40 font-bold block text-center border-t border-black/5 dark:border-white/5 pt-1 mt-1">🤖 MOCK AI • ENTER GROQ KEY IN SETTINGS</span>`;
+    }
+
+    try {
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${key}`
+            },
+            body: JSON.stringify({
+                model: "llama3-8b-8192",
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are "KingHelper", an intelligent, extremely helpful and friendly AI assistant agent for Burger King. 
+                        Your goals:
+                        1. Assist customers by answering questions, recommending foods based on category (spicy, sweet, savory, healthy) or mood.
+                        2. ALWAYS try to suggest cross-selling or up-selling (e.g. if they ask for something cold, offer fruit tea, milkshakes, ice tea, etc.)
+                        3. If the user wants to buy/order something, PARSE the order into the following format:
+                        :::ORDER_JSON:::
+                        [
+                          {"name": "Item Name", "qty": 2}
+                        ]
+                        :::END_ORDER_JSON:::
+                        Match the requested items to this exact menu:
+                        ${JSON.stringify(MENU_DATA.map(i => ({name: i.name, category: i.category, price: i.price, spicy: i.spicy})))}
+
+                        Rules for parsing orders:
+                        - If they say "something sweet", recommend and parse a sweet item (like "Sundae Chocolate" or "Fruit Tea").
+                        - If they say "something hot" or "spicy" or "something sweet 2 hot 3", match "sweet" to a sweet item and "hot" to a spicy item.
+                        - You must write the JSON block EXACTLY as specified above so our code can parse it.
+                        - Respond in a warm, polite manner. Use emojis.`
+                    },
+                    {
+                        role: "user",
+                        content: query
+                    }
+                ]
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error("Groq API error status: " + response.status);
+        }
+
+        const data = await response.json();
+        let reply = data.choices[0].message.content;
+
+        // Parse order JSON if present
+        const orderRegex = /:::ORDER_JSON:::([\s\S]*?):::END_ORDER_JSON:::/;
+        const match = reply.match(orderRegex);
+        if (match) {
+            try {
+                const parsed = JSON.parse(match[1].trim());
+                let addedItems = [];
+                parsed.forEach(p => {
+                    // Fuzzy match item name
+                    const item = MENU_DATA.find(i => i.name.toLowerCase().includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(i.name.toLowerCase()));
+                    if (item) {
+                        addToCartFromChat(item.name, p.qty || 1);
+                        addedItems.push(`${item.name} (${p.qty || 1}x)`);
+                    }
+                });
+                if (addedItems.length > 0) {
+                    reply = reply.replace(orderRegex, "") + `<br><br><div class="bg-green-500/20 dark:bg-green-500/10 p-3 rounded-2xl text-xs font-bold text-green-700 dark:text-green-400 mt-2 border border-green-500/20">🛒 Added to Cart: ${addedItems.join(", ")}</div>`;
+                }
+            } catch(err) {
+                console.error("Order parsing failed", err);
+            }
+        }
+
+        return reply.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;").replace(/&lt;br&gt;/g, "<br>").replace(/&lt;div([\s\S]*?)&gt;([\s\S]*?)&lt;\/div&gt;/g, "<div$1>$2</div>");
+    } catch (err) {
+        console.error("Groq integration failed:", err);
+        return `Failed to connect to Llama-3 AI. Using offline fallback:<br><br>${processSmartLogic(query)}`;
+    }
 }
 
 function processSmartLogic(query) {
@@ -564,22 +882,47 @@ function showAiSuggestion(text) {
     addMessage(text);
 }
 
+function toggleAiSettings() {
+    const panel = document.getElementById('aiSettingsPanel');
+    panel.classList.toggle('hidden');
+    
+    // Autofill key if saved
+    const saved = localStorage.getItem('groq_api_key');
+    if (saved) {
+        document.getElementById('groqApiKeyInput').value = saved;
+    }
+}
+
+function saveGroqApiKey() {
+    const input = document.getElementById('groqApiKeyInput');
+    const key = input.value.trim();
+    if (key) {
+        localStorage.setItem('groq_api_key', key);
+        showToast("Groq API Key Saved! Llama-3 is active.");
+        toggleAiSettings();
+    } else {
+        localStorage.removeItem('groq_api_key');
+        showToast("Groq API Key removed. Offline mode active.");
+        toggleAiSettings();
+    }
+}
+
 /**
  * ADD TO CART FROM CHAT
  * Called by the "Add to Cart +" buttons rendered inside the AI chat window.
  */
-function addToCartFromChat(name) {
+function addToCartFromChat(name, qty = 1) {
     const item = MENU_DATA.find(i => i.name === name);
     if (!item) return;
 
     const existing = cart.find(c => c.name === item.name);
     if (existing) {
-        existing.qty += 1;
+        existing.qty += qty;
     } else {
-        cart.push({ ...item, qty: 1 });
+        cart.push({ ...item, qty: qty });
     }
     updateCartUI();
-    showToast(`${item.name} added to cart! 🍔`);
+    showToast(`${qty}x ${item.name} added to cart! 🍔`);
 }
 
 /**
@@ -756,7 +1099,86 @@ function focusOutlet(lat, lng) {
     }
 }
 
+function openSellerInfo() {
+    const modal = document.getElementById('sellerModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        lucide.createIcons();
+    }
+}
+
+/**
+ * LIVE CHAT LOGIC (Customer Side - Unique ID from DoB)
+ */
+let currentCustomerId = null;
+
+function toggleLiveChat() {
+    document.getElementById('liveChatWindow').classList.toggle('hidden');
+    lucide.createIcons();
+}
+
+function startLiveChat() {
+    const name = document.getElementById('chatName').value.trim();
+    const dob = document.getElementById('chatDoB').value;
+    
+    if (!name || !dob) {
+        return showToast("Please enter your name and Date of Birth");
+    }
+    
+    // Create Unique ID based on DoB (Rubric Requirement)
+    const dobFormatted = dob.replace(/-/g, '');
+    currentCustomerId = `${name.replace(/\s+/g, '_')}-${dobFormatted}`;
+    
+    document.getElementById('liveChatRegistration').classList.add('hidden');
+    document.getElementById('liveChatInterface').classList.remove('hidden');
+    document.getElementById('liveChatInterface').classList.add('flex');
+    
+    // Listen to Firebase for this specific chat
+    if (typeof db !== 'undefined') {
+        db.ref('chats/' + currentCustomerId).on('value', (snapshot) => {
+            const data = snapshot.val();
+            renderLiveChatHistory(data);
+        });
+    }
+}
+
+function sendLiveChat() {
+    const input = document.getElementById('liveChatInput');
+    const text = input.value.trim();
+    if (!text || !currentCustomerId || typeof db === 'undefined') return;
+    
+    const msgData = {
+        sender: 'customer',
+        text: text,
+        timestamp: Date.now()
+    };
+    
+    db.ref('chats/' + currentCustomerId).push(msgData);
+    input.value = '';
+}
+
+function renderLiveChatHistory(data) {
+    const history = document.getElementById('liveChatHistory');
+    history.innerHTML = '<div class="text-center text-[10px] font-bold opacity-40 my-2">Chat Started with ' + currentCustomerId + '</div>';
+    
+    if (data) {
+        const messages = Object.values(data).sort((a,b) => a.timestamp - b.timestamp);
+        messages.forEach(msg => {
+            const isUser = msg.sender === 'customer';
+            history.innerHTML += `
+                <div class="p-3 rounded-2xl max-w-[85%] text-sm shadow-sm animate-fade ${isUser ? 'bg-bk-red text-white rounded-tr-none self-end' : 'bg-gray-200 dark:bg-white/10 text-bk-dark dark:text-white rounded-tl-none self-start'}">
+                    ${msg.text}
+                    <div class="text-[8px] opacity-50 mt-1 text-right">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                </div>
+            `;
+        });
+        history.scrollTop = history.scrollHeight;
+    }
+}
+
 // BOOTSTRAP
 document.addEventListener('DOMContentLoaded', () => {
-    filterCategory('all');
+    initFirebaseData(() => {
+        filterCategory('all');
+    });
 });
